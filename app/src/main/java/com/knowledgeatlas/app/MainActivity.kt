@@ -60,6 +60,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -238,14 +239,8 @@ private fun AtlasHome(
                     }
                 },
                 actions = {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.padding(end = 14.dp).size(38.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "الإعدادات", tint = Color.White)
-                        }
+                    IconButton(onClick = { activeTab = AtlasTab.SETTINGS }, modifier = Modifier.padding(end = 8.dp)) {
+                        Icon(Icons.Outlined.Settings, contentDescription = "فتح الإعدادات", tint = Color.White)
                     }
                 }
             )
@@ -480,7 +475,10 @@ private fun AtlasHome(
                     Text("كيف تبدأ؟", color = AtlasTeal, fontWeight = FontWeight.Bold)
                     Text(source.exactStepsToStartAr, color = Color.LightGray)
                     Text("آخر تحقق: ${source.lastVerifiedDate}", color = Color.LightGray, fontSize = 12.sp)
-                    Text("نوع الوصول: ${source.accessType}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("نوع الوصول: ${accessTypeLabel(source.accessType)}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("تصنيف الجهة: ${confidenceLabel(source.confidenceLevel)}", color = Color.LightGray, fontSize = 12.sp)
+                    Text("مرجع التحقق: ${source.verificationSource}", color = Color.LightGray, fontSize = 12.sp)
+                    Text(if (source.hasArabicInterface) "واجهة عربية متاحة" else "الواجهة العربية غير مؤكدة", color = Color.LightGray, fontSize = 12.sp)
                 }
             },
             confirmButton = {
@@ -586,7 +584,7 @@ private fun SourceCard(
             Text(source.shortDescriptionAr, color = Color(0xFFD0D9E6), fontSize = 13.sp, lineHeight = 20.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Surface(color = Color(0xFF1C4650), shape = RoundedCornerShape(50)) {
-                    Text("المجال ${source.categoryId}", color = AtlasTeal, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                    Text(categoryLabel(source.categoryId), color = AtlasTeal, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
                 Text("تحقق: ${source.lastVerifiedDate}", color = Color(0xFF9EADC2), fontSize = 10.sp)
                 Spacer(Modifier.weight(1f))
@@ -594,6 +592,21 @@ private fun SourceCard(
             }
         }
     }
+}
+
+private fun categoryLabel(id:Int):String=when(id) {
+  1->"التعليم"; 2->"الأبحاث"; 3->"البرمجة"; 4->"الذكاء الاصطناعي"
+  5->"الزراعة"; 6->"العلوم"; 7->"الأعمال"; 8->"البيانات"
+  9->"الصحة العامة"; 10->"الفكر والتاريخ"; 11->"الهندسة والطاقة"; 12->"الإنتاجية"
+  else->"مجال آخر"
+}
+private fun accessTypeLabel(value:String):String=when(value.uppercase()) {
+  "FREE"->"مجاني"; "PAID"->"مدفوع"; "MIXED"->"مجاني ومدفوع"
+  "REGISTRATION"->"يتطلب تسجيلاً"; else->"غير محدد"
+}
+private fun confidenceLabel(value:String):String=when(value.uppercase()) {
+  "OFFICIAL"->"جهة رسمية / موقع الجهة"; "ACADEMIC"->"أكاديمي"
+  "GOVERNMENT"->"حكومي"; "COMMUNITY"->"مجتمعي"; else->"غير مصنف"
 }
 
 @Composable

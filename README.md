@@ -137,14 +137,14 @@ gradle testDirectDebugUnitTest
 
 ### إنشاء مفتاح الإصدار الدائم مرة واحدة على Windows
 
-باستخدام JDK 17 أو أحدث في PowerShell:
+يوجد سكربت PowerShell جاهز في `tools/create-release-keystore.ps1`. نزّل المستودع إلى جهاز Windows، وافتح PowerShell من مجلد المشروع، ثم نفّذ:
 
 ```powershell
-keytool -genkeypair -v -keystore knowledge-atlas-release.jks -alias knowledge-atlas -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Knowledge Atlas, OU=Release, O=Knowledge Atlas, C=EG"
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD/knowledge-atlas-release.jks")) | Set-Clipboard
+Set-ExecutionPolicy -Scope Process Bypass
+.\tools\create-release-keystore.ps1
 ```
 
-احتفظ بملف JKS وكلمات المرور في أماكن آمنة. فقدان المفتاح يمنع تحديثات التثبيت فوق النسخ الموقعة به، وتسريبه يعرّض هوية التطبيق للخطر. لا ترفع الملف إلى GitHub ولا ترسله في المحادثة.
+سيطلب منك `keytool` كلمة مرور قوية، وينشئ `knowledge-atlas-release.jks` محلياً، ثم ينسخ نسخة Base64 إلى الحافظة. عند طلب كلمة مرور المفتاح، اضغط Enter لاستخدام كلمة مرور ملف JKS نفسها. احتفظ بالملف وكلمات المرور في مكانين آمنين. لا ترفع JKS إلى GitHub ولا ترسله في المحادثة.
 
 في إعدادات المستودع `Settings → Secrets and variables → Actions` أضف الأسرار:
 - `ATLAS_RELEASE_KEYSTORE_BASE64`: النص المنسوخ من PowerShell.

@@ -17,7 +17,9 @@ object AtlasLocalSearch {
     private val stopWords = setOf(
         "كيف", "كيفيه", "ازاي", "ماذا", "ايه", "هل", "ما", "هو", "هي",
         "في", "من", "الي", "على", "عن", "مع", "هذا", "هذه", "ذلك",
-        "التي", "الذي", "و", "او", "ثم"
+        "التي", "الذي", "و", "او", "ثم",
+        // Common question/action words should not raise the match threshold.
+        "اتعامل", "التعامل", "اعالج", "اعرف", "ابحث", "اقدر"
     )
 
     private val synonyms = mapOf(

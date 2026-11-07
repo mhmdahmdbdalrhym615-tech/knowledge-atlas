@@ -1,0 +1,2 @@
+-keep class com.knowledgeatlas.app.data.model.** { *; }
+-keep class * extends androidx.room.RoomDatabase

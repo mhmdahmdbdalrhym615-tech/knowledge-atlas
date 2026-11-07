@@ -98,7 +98,7 @@ jobs:
           with open(apk_path, "rb") as f:
               digest = hashlib.sha256(f.read()).hexdigest()
           with open("release-sha256.txt", "w", encoding="utf-8") as f:
-              f.write(f"{digest}  {os.path.basename(apk_path)}\\n")
+              f.write(f"{digest}  {os.path.basename(apk_path)}\n")
           public_url = os.environ.get("PUBLIC_APK_URL", "").strip()
           if public_url:
               if not public_url.startswith("https://"):
@@ -112,7 +112,7 @@ jobs:
               }
               with open("stable-update-manifest.json", "w", encoding="utf-8") as f:
                   json.dump(manifest, f, ensure_ascii=False, indent=2)
-                  f.write("\\n")
+                  f.write("\n")
               print("Update manifest created. Publish it at ATLAS_UPDATE_MANIFEST_URL.")
           else:
               print("::notice::APK is signed and verified. Update manifest omitted because ATLAS_PUBLIC_APK_URL is not configured.")

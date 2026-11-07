@@ -5,7 +5,7 @@ from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 _DIACRITICS=re.compile(r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]")
-_TRANSLATION=str.maketrans({"أ":"ا","إ":"ا","آ":"ا","ٱ":"ا","ى":"ي","ؤ":"و","ئ":"ي"})
+_TRANSLATION=str.maketrans({"أ":"ا","إ":"ا","آ":"ا","ٱ":"ا","ى":"ي","ؤ":"و","ئ":"ي","ة":"ه"})
 _EXPANSIONS=(
 (("تربه","ارض","اراضي"),"soil science soil properties land assessment"),
 (("ملوحه","ملحيه","املاح"),"soil salinity electrical conductivity salt affected soils"),

@@ -7,6 +7,7 @@ import android.opengl.Matrix
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -450,18 +451,25 @@ private class OceanCityRenderer(
             draw(cylinder, node.x, 1.20f + h, node.z, 0.09f, 0.62f, 0.09f,
                 rgb(0.22f, 0.56f, 0.61f), scaleColor(node.color, 1.2f * glowBoost))
 
-            // Recessed-looking illuminated windows and entrance columns.
-            for (level in 0..2) {
-                val windowY = 0.63f + level * 0.42f + h * 0.32f
-                draw(cube, node.x + 0.24f, windowY, node.z + 0.425f,
-                    0.16f, 0.21f, 0.025f, rgb(0.035f, 0.16f, 0.22f), scaleColor(node.color, 1.65f * glowBoost))
-                draw(cube, node.x - 0.24f, windowY, node.z + 0.425f,
-                    0.16f, 0.21f, 0.025f, rgb(0.035f, 0.16f, 0.22f), scaleColor(node.color, 1.35f * glowBoost))
+            // High-detail facade parts are drawn only when the camera is close.
+            val cameraDistanceToDistrict = kotlin.math.sqrt(
+                (node.x - eye[0]) * (node.x - eye[0]) +
+                    (node.z - eye[2]) * (node.z - eye[2]) +
+                    (h * 0.5f - eye[1]) * (h * 0.5f - eye[1])
+            )
+            if (cameraDistanceToDistrict < 10.5f) {
+                for (level in 0..2) {
+                    val windowY = 0.63f + level * 0.42f + h * 0.32f
+                    draw(cube, node.x + 0.24f, windowY, node.z + 0.425f,
+                        0.16f, 0.21f, 0.025f, rgb(0.035f, 0.16f, 0.22f), scaleColor(node.color, 1.65f * glowBoost))
+                    draw(cube, node.x - 0.24f, windowY, node.z + 0.425f,
+                        0.16f, 0.21f, 0.025f, rgb(0.035f, 0.16f, 0.22f), scaleColor(node.color, 1.35f * glowBoost))
+                }
+                draw(personCylinder, node.x - 0.45f, 0.46f, node.z + 0.46f,
+                    0.045f, 0.48f, 0.045f, rgb(0.16f, 0.34f, 0.42f), trim)
+                draw(personCylinder, node.x + 0.45f, 0.46f, node.z + 0.46f,
+                    0.045f, 0.48f, 0.045f, rgb(0.16f, 0.34f, 0.42f), trim)
             }
-            draw(personCylinder, node.x - 0.45f, 0.46f, node.z + 0.46f,
-                0.045f, 0.48f, 0.045f, rgb(0.16f, 0.34f, 0.42f), trim)
-            draw(personCylinder, node.x + 0.45f, 0.46f, node.z + 0.46f,
-                0.045f, 0.48f, 0.045f, rgb(0.16f, 0.34f, 0.42f), trim)
 
             // Floating crown and antenna.
             draw(torus, node.x, 1.15f + h, node.z, 0.92f, 1f, 0.92f,
@@ -526,6 +534,28 @@ private class OceanCityRenderer(
                 (180f / PI.toFloat())
             val look = if (walking) 0f else sin(frameTime * 0.7f + citizen.id * 1.7f) * 9f
             val base = 0.15f
+            val citizenDistance = kotlin.math.sqrt(
+                (x - eye[0]) * (x - eye[0]) + (z - eye[2]) * (z - eye[2]) +
+                    (base + 0.48f - eye[1]) * (base + 0.48f - eye[1])
+            )
+            if (citizenDistance > 8.5f) {
+                // Distant residents use a light LOD silhouette; zooming in reveals the full model.
+                drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.49f + bob, 0f,
+                    0.15f, 0.23f, 0.105f, citizen.outfit, citizen.accent)
+                drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.79f + bob, 0f,
+                    0.095f, 0.12f, 0.095f, citizen.skin, citizen.accent)
+                drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.885f + bob, -0.01f,
+                    0.10f, 0.045f, 0.10f, citizen.hair, citizen.hair)
+                drawCitizenPart(personCylinder, x, z, facing, -0.07f, base + 0.15f, 0f,
+                    0.055f, 0.20f, 0.055f, citizen.trousers, citizen.accent, 0f, -legSwing * 0.7f)
+                drawCitizenPart(personCylinder, x, z, facing, 0.07f, base + 0.15f, 0f,
+                    0.055f, 0.20f, 0.055f, citizen.trousers, citizen.accent, 0f, legSwing * 0.7f)
+                drawCitizenPart(personCylinder, x, z, facing, -0.20f, base + 0.46f, 0f,
+                    0.045f, 0.30f, 0.045f, citizen.outfit, citizen.accent, 0f, armSwing * 0.7f)
+                drawCitizenPart(personCylinder, x, z, facing, 0.20f, base + 0.46f, 0f,
+                    0.045f, 0.30f, 0.045f, citizen.outfit, citizen.accent, 0f, -armSwing * 0.7f)
+                continue
+            }
 
             // Torso: layered clothing, collar, belt and shoulder silhouette.
             drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.49f + bob, 0f,

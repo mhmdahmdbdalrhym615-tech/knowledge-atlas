@@ -36,6 +36,7 @@ def test_search_filters_unsafe_urls_and_deduplicates_results(monkeypatch):
 
     def handler(request):
         assert request.url.scheme == "https"
+        assert request.headers.get("x-real-ip") == "testclient"
         return httpx.Response(200, request=request, json={"results": [
             {"title": "FAO soil resources", "url": "https://www.fao.org/soils", "content": "Soil resources and land management.", "score": 1.0},
             {"title": "Duplicate result", "url": "https://www.fao.org/soils#section", "content": "Duplicate entry.", "score": 0.8},

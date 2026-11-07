@@ -9,7 +9,7 @@ val updateManifestUrl = providers.gradleProperty("ATLAS_UPDATE_MANIFEST_URL").or
 
 android {
     namespace = "com.knowledgeatlas.app"
-    compileSdk = 37
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.knowledgeatlas.app"

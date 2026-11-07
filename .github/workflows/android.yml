@@ -34,11 +34,33 @@ jobs:
 
       - name: Install Android SDK platform and build tools
         run: |
-          yes | sdkmanager --channel=3 --licenses >/dev/null
-          sdkmanager --channel=3 "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Build direct-distribution debug APK
         run: gradle --no-daemon assembleDirectDebug
 
-      - name: Run unit tests
+      - name: Run Android unit tests
         run: gradle --no-daemon testDirectDebugUnitTest
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-atlas-direct-debug
+          path: app/build/outputs/apk/direct/debug/*.apk
+          if-no-files-found: error
+
+  search-api-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install search API test dependencies
+        run: python -m pip install --upgrade pytest
+      - name: Run search relevance and safety tests
+        working-directory: services/search_api
+        run: python -m pytest tests -q

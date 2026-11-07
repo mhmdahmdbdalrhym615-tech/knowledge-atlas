@@ -1,12 +1,16 @@
 package com.knowledgeatlas.app
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -14,6 +18,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -21,7 +26,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +36,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,7 +45,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,14 +58,12 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -69,11 +72,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -82,16 +82,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
 import com.knowledgeatlas.app.data.model.KnowledgeSource
 import com.knowledgeatlas.app.search.AtlasLocalSearch
@@ -103,11 +103,31 @@ import com.knowledgeatlas.app.update.UpdateResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-private val AtlasInk = Color(0xFF101827)
-private val AtlasMidnight = Color(0xFF17243A)
-private val AtlasTeal = Color(0xFF36D6C3)
-private val AtlasBlue = Color(0xFF6E8BFF)
-private val AtlasGold = Color(0xFFF1C77A)
+private val AtlasInk = Color(0xFF080D19)
+private val AtlasMidnight = Color(0xFF111B30)
+private val AtlasPanel = Color(0xFF17243B)
+private val AtlasTeal = Color(0xFF42E8D1)
+private val AtlasBlue = Color(0xFF7894FF)
+private val AtlasViolet = Color(0xFFB18CFF)
+private val AtlasGold = Color(0xFFFFD27A)
+private val AtlasMuted = Color(0xFF9EADC5)
+
+private data class AtlasCategory(val id: Int, val title: String, val symbol: String, val color: Color)
+
+private val AtlasCategories = listOf(
+    AtlasCategory(1, "التعليم", "🎓", Color(0xFF54D6C7)),
+    AtlasCategory(2, "الأبحاث", "🔬", Color(0xFF8CA7FF)),
+    AtlasCategory(3, "البرمجة", "⌘", Color(0xFF63C8FF)),
+    AtlasCategory(4, "الذكاء الاصطناعي", "✦", Color(0xFFB18CFF)),
+    AtlasCategory(5, "الزراعة", "🌱", Color(0xFF83D88A)),
+    AtlasCategory(6, "العلوم", "⚛", Color(0xFF54D6E8)),
+    AtlasCategory(7, "الأعمال", "◈", Color(0xFFFFC477)),
+    AtlasCategory(8, "البيانات", "▥", Color(0xFF6EA8FF)),
+    AtlasCategory(9, "الصحة العامة", "✚", Color(0xFFFF8FA3)),
+    AtlasCategory(10, "الفكر والتاريخ", "⌛", Color(0xFFD6B47C)),
+    AtlasCategory(11, "الهندسة والطاقة", "⚙", Color(0xFF9AC7FF)),
+    AtlasCategory(12, "الإنتاجية", "◉", Color(0xFFB8A0FF))
+)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -118,59 +138,55 @@ class MainActivity : ComponentActivity() {
         val webSearchState = MutableStateFlow<AtlasWebSearchUiState?>(null)
 
         setContent {
-            val darkColors = darkColorScheme(
-                primary = AtlasTeal,
-                onPrimary = AtlasInk,
-                secondary = AtlasBlue,
-                background = AtlasInk,
-                surface = AtlasMidnight,
-                surfaceVariant = Color(0xFF24334A),
-                onSurface = Color(0xFFF3F6FC),
-                onBackground = Color(0xFFF3F6FC),
-                primaryContainer = Color(0xFF1D3B49),
-                onPrimaryContainer = Color(0xFFE4FFFB)
-            )
-            MaterialTheme(colorScheme = darkColors) {
-                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    val sources by dao.getAllSources().collectAsState(initial = emptyList())
-                    val webSearch by webSearchState.collectAsState()
-                    AtlasHome(
-                        sources = sources,
-                        webSearchState = webSearch,
-                        onSearchWeb = { rawQuery ->
-                            val requestedQuery = rawQuery.trim()
-                            if (requestedQuery.isNotEmpty()) {
-                                webSearchState.value = AtlasWebSearchUiState(
-                                    query = requestedQuery,
-                                    isLoading = true
-                                )
-                                lifecycleScope.launch {
-                                    val result = searchGateway.search(requestedQuery)
-                                    if (webSearchState.value?.query == requestedQuery) {
-                                        webSearchState.value = AtlasWebSearchUiState(
-                                            query = requestedQuery,
-                                            result = result
-                                        )
-                                    }
-                                }
-                            }
-                        },
-                        onToggleFavorite = { source ->
-                            lifecycleScope.launch { dao.updateSource(source.copy(isFavorite = !source.isFavorite)) }
-                        },
-                        onCheckUpdate = {
+            var accent by remember { mutableStateOf(AtlasTeal) }
+            MaterialTheme(
+                colorScheme = androidx.compose.material3.darkColorScheme(
+                    primary = accent,
+                    onPrimary = AtlasInk,
+                    secondary = AtlasBlue,
+                    background = AtlasInk,
+                    surface = AtlasPanel,
+                    surfaceVariant = Color(0xFF26334C),
+                    onSurface = Color(0xFFF4F7FF),
+                    onBackground = Color(0xFFF4F7FF),
+                    primaryContainer = Color(0xFF1B3D45),
+                    onPrimaryContainer = Color(0xFFE7FFFA)
+                )
+            ) {
+                val sources by dao.getAllSources().collectAsState(initial = emptyList())
+                val webSearch by webSearchState.collectAsState()
+                AtlasHome(
+                    sources = sources,
+                    accent = accent,
+                    onAccentChange = { accent = it },
+                    webSearchState = webSearch,
+                    onSearchWeb = { rawQuery ->
+                        val query = rawQuery.trim()
+                        if (query.isNotEmpty()) {
+                            webSearchState.value = AtlasWebSearchUiState(query = query, isLoading = true)
                             lifecycleScope.launch {
-                                when (val result = updateManager.checkAndDownload()) {
-                                    UpdateResult.Disabled -> Toast.makeText(this@MainActivity, "التحديث المباشر غير مفعّل لهذه النسخة.", Toast.LENGTH_LONG).show()
-                                    UpdateResult.UpToDate -> Toast.makeText(this@MainActivity, "أنت تستخدم أحدث إصدار.", Toast.LENGTH_SHORT).show()
-                                    UpdateResult.PermissionRequired -> Toast.makeText(this@MainActivity, "اسمح بالتثبيت من هذا المصدر، ثم أعد فحص التحديث.", Toast.LENGTH_LONG).show()
-                                    is UpdateResult.ReadyToInstall -> updateManager.requestUserInstall(result)
-                                    is UpdateResult.Failed -> Toast.makeText(this@MainActivity, result.reason, Toast.LENGTH_LONG).show()
+                                val result = searchGateway.search(query)
+                                if (webSearchState.value?.query == query) {
+                                    webSearchState.value = AtlasWebSearchUiState(query = query, result = result)
                                 }
                             }
                         }
-                    )
-                }
+                    },
+                    onUpdateSource = { source ->
+                        lifecycleScope.launch { dao.updateSource(source) }
+                    },
+                    onCheckUpdate = {
+                        lifecycleScope.launch {
+                            when (val result = updateManager.checkAndDownload()) {
+                                UpdateResult.Disabled -> android.widget.Toast.makeText(this@MainActivity, "التحديث المباشر غير مفعّل لهذه النسخة.", android.widget.Toast.LENGTH_LONG).show()
+                                UpdateResult.UpToDate -> android.widget.Toast.makeText(this@MainActivity, "أنت تستخدم أحدث إصدار.", android.widget.Toast.LENGTH_SHORT).show()
+                                UpdateResult.PermissionRequired -> android.widget.Toast.makeText(this@MainActivity, "اسمح بالتثبيت من هذا المصدر، ثم أعد فحص التحديث.", android.widget.Toast.LENGTH_LONG).show()
+                                is UpdateResult.ReadyToInstall -> updateManager.requestUserInstall(result)
+                                is UpdateResult.Failed -> android.widget.Toast.makeText(this@MainActivity, result.reason, android.widget.Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
+                )
             }
         }
     }
@@ -184,364 +200,430 @@ private data class AtlasWebSearchUiState(
 
 private enum class AtlasTab { DISCOVER, SAVED, SETTINGS }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AtlasHome(
     sources: List<KnowledgeSource>,
+    accent: Color,
+    onAccentChange: (Color) -> Unit,
     webSearchState: AtlasWebSearchUiState?,
     onSearchWeb: (String) -> Unit,
-    onToggleFavorite: (KnowledgeSource) -> Unit,
+    onUpdateSource: (KnowledgeSource) -> Unit,
     onCheckUpdate: () -> Unit
 ) {
-    val context = LocalContext.current
     var selectedCategory by remember { mutableStateOf<Int?>(null) }
     var searchText by remember { mutableStateOf("") }
     var activeTab by remember { mutableStateOf(AtlasTab.DISCOVER) }
     var selectedSource by remember { mutableStateOf<KnowledgeSource?>(null) }
-    val categories = listOf(
-        1 to "التعليم", 2 to "الأبحاث", 3 to "البرمجة", 4 to "الذكاء الاصطناعي",
-        5 to "الزراعة", 6 to "العلوم", 7 to "الأعمال", 8 to "البيانات",
-        9 to "الصحة العامة", 10 to "الفكر والتاريخ", 11 to "الهندسة والطاقة",
-        12 to "الإنتاجية"
-    )
-    val tabSources = when (activeTab) {
-        AtlasTab.SAVED -> sources.filter { it.isFavorite }
-        else -> sources
-    }
+    var browserPage by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+    BackHandler(enabled = selectedSource != null && browserPage == null) { selectedSource = null }
+    val tabSources = if (activeTab == AtlasTab.SAVED) sources.filter { it.isFavorite } else sources
     val rankedSources = AtlasLocalSearch.rank(tabSources, searchText)
-    val filteredSources = rankedSources.filter { source ->
-        selectedCategory == null || source.categoryId == selectedCategory
-    }
+    val filteredSources = rankedSources.filter { selectedCategory == null || it.categoryId == selectedCategory }
     val activeWebSearch = webSearchState?.takeIf { it.query == searchText.trim() }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
+        containerColor = AtlasInk,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                windowInsets = WindowInsets.statusBars,
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                                .background(Brush.linearGradient(listOf(AtlasTeal, AtlasBlue))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Outlined.Language, contentDescription = null, tint = AtlasInk)
-                        }
-                        Spacer(Modifier.width(11.dp))
-                        Column {
-                            Text("أطلس المعرفة", fontWeight = FontWeight.Bold, fontSize = 19.sp)
-                            Text("KNOWLEDGE ATLAS", fontSize = 9.sp, letterSpacing = 2.sp, color = AtlasTeal)
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { activeTab = AtlasTab.SETTINGS }, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "فتح الإعدادات", tint = Color.White)
-                    }
-                }
-            )
-        },
         bottomBar = {
-            NavigationBar(
-                containerColor = AtlasMidnight,
-                contentColor = Color.White,
-                windowInsets = WindowInsets.navigationBars
-            ) {
-                NavigationBarItem(
-                    selected = activeTab == AtlasTab.DISCOVER,
-                    onClick = { activeTab = AtlasTab.DISCOVER },
-                    icon = { Icon(Icons.Outlined.Explore, contentDescription = null) },
-                    label = { Text("اكتشف") }
-                )
-                NavigationBarItem(
-                    selected = activeTab == AtlasTab.SAVED,
-                    onClick = { activeTab = AtlasTab.SAVED },
-                    icon = { Icon(Icons.Outlined.Bookmark, contentDescription = null) },
-                    label = { Text("المحفوظات") }
-                )
-                NavigationBarItem(
-                    selected = activeTab == AtlasTab.SETTINGS,
-                    onClick = { activeTab = AtlasTab.SETTINGS },
-                    icon = { Icon(Icons.Outlined.SystemUpdate, contentDescription = null) },
-                    label = { Text("التحديثات") }
-                )
+            if (browserPage == null && selectedSource == null) {
+                AtlasBottomBar(activeTab = activeTab, onSelect = { activeTab = it })
             }
         }
-    ) { insets ->
-        AnimatedContent(
-            targetState = activeTab,
-            transitionSpec = {
-                (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 18 }) togetherWith
-                    (fadeOut(tween(180)) + slideOutVertically(tween(180)) { -it / 24 })
-            },
-            label = "atlas-main-navigation"
-        ) { tab ->
-            when (tab) {
-                AtlasTab.DISCOVER, AtlasTab.SAVED -> LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(insets),
-                    contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = 12.dp, bottom = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(15.dp)
-                ) {
-                    item {
-                        TemporalHero(
-                            title = if (tab == AtlasTab.SAVED) "مكتبتك الشخصية" else "المعرفة بلا حدود",
-                            subtitle = if (tab == AtlasTab.SAVED) "كل ما حفظته في مكان واحد." else "اكتشف مصادر موثوقة. افهم الفكرة. ابدأ من المكان الصحيح.",
-                            count = sources.size
-                        )
-                    }
-                    if (tab == AtlasTab.DISCOVER) {
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("اعثر على المصادر بالكلمات أو المصطلحات", fontWeight = FontWeight.SemiBold, color = Color.White)
-                                OutlinedTextField(
-                                    value = searchText,
-                                    onValueChange = { searchText = it },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true,
-                                    shape = RoundedCornerShape(18.dp),
-                                    leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                                    placeholder = { Text("مثال: كيف أحسّن خصوبة التربة؟") },
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                    keyboardActions = KeyboardActions(
-                                        onSearch = { onSearchWeb(searchText) }
-                                    )
-                                )
-                                Button(
-                                    onClick = { onSearchWeb(searchText) },
-                                    enabled = searchText.isNotBlank() && activeWebSearch?.isLoading != true,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        if (activeWebSearch?.isLoading == true) "جارٍ البحث في الويب..."
-                                        else "ابحث في الويب الأوسع"
-                                    )
-                                }
-                            }
-                        }
-                        activeWebSearch?.let { searchState ->
-                            if (searchState.isLoading) {
-                                item {
-                                    Text(
-                                        "جارٍ البحث عن نتائج الويب وفق كلمات الاستعلام...",
-                                        color = AtlasTeal,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                            }
-                            searchState.result?.let { result ->
-                                when (result) {
-                                    is WebSearchResult.Success -> {
-                                        item {
-                                            Text(
-                                                "نتائج البحث من الويب (${result.hits.size})",
-                                                color = AtlasTeal,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                        if (result.hits.isEmpty()) {
-                                            item {
-                                                EmptyState(
-                                                    "لم تظهر نتائج",
-                                                    "جرّب صياغة السؤال بطريقة أخرى."
-                                                )
-                                            }
-                                        } else {
-                                            items(result.hits, key = { it.url }) { hit ->
-                                                WebSearchResultCard(
-                                                    hit = hit,
-                                                    onOpen = {
-                                                        runCatching {
-                                                            context.startActivity(
-                                                                Intent(Intent.ACTION_VIEW, Uri.parse(hit.url))
-                                                            )
-                                                        }.onFailure {
-                                                            Toast.makeText(
-                                                                context,
-                                                                "تعذر فتح رابط المصدر.",
-                                                                Toast.LENGTH_SHORT
-                                                            ).show()
-                                                        }
-                                                    }
-                                                )
-                                            }
-                                        }
-                                    }
-                                    WebSearchResult.NotConfigured -> item {
-                                        EmptyState(
-                                            "محرك البحث غير مربوط بعد",
-                                            "البحث داخل مكتبة أطلس يعمل محلياً. البحث العالمي سيعمل بعد إعداد عنوان Search API على الخادم."
-                                        )
-                                    }
-                                    is WebSearchResult.Failure -> item {
-                                        EmptyState(
-                                            "تعذر إكمال البحث",
-                                            result.message
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        item {
-                            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("استكشف المجالات", fontWeight = FontWeight.SemiBold, color = Color.White)
-                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    item {
-                                        FilterChip(
-                                            selected = selectedCategory == null,
-                                            onClick = { selectedCategory = null },
-                                            label = { Text("الكل") }
-                                        )
-                                    }
-                                    items(categories) { category ->
-                                        FilterChip(
-                                            selected = selectedCategory == category.first,
-                                            onClick = { selectedCategory = if (selectedCategory == category.first) null else category.first },
-                                            label = { Text(category.second) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        item {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("مصادر تستحق الاستكشاف", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-                                Text("${filteredSources.size} مصدر", color = AtlasTeal, fontSize = 12.sp)
-                            }
-                        }
-                    } else {
-                        item { Text("المصادر المحفوظة", fontWeight = FontWeight.Bold, color = Color.White) }
-                    }
-                    if (filteredSources.isEmpty()) {
-                        item {
-                            EmptyState(
-                                title = if (tab == AtlasTab.SAVED) "لم تحفظ مصادر بعد" else "لا توجد نتائج مطابقة",
-                                subtitle = if (tab == AtlasTab.SAVED) "اضغط علامة الحفظ على أي مصدر لإضافته هنا." else "جرّب كلمة أخرى أو اختر مجالاً مختلفاً."
-                            )
-                        }
-                    } else {
-                        items(filteredSources, key = { it.id }) { source ->
-                            SourceCard(
-                                source = source,
-                                onOpen = { selectedSource = source },
-                                onFavorite = { onToggleFavorite(source) }
-                            )
-                        }
-                    }
-                }
-
-                AtlasTab.SETTINGS -> LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(insets),
-                    contentPadding = PaddingValues(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    item { TemporalHero("مركز النظام", "تحديثات التطبيق وإدارة نسختك.", sources.size) }
-                    item {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = AtlasMidnight),
-                            shape = RoundedCornerShape(22.dp)
-                        ) {
-                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Icon(Icons.Outlined.SystemUpdate, contentDescription = null, tint = AtlasTeal, modifier = Modifier.size(30.dp))
-                                Text("تحديث أطلس المعرفة", fontWeight = FontWeight.Bold, color = Color.White)
-                                Text("تحقق من وجود إصدار أحدث. التثبيت النهائي يخضع لموافقة Android.", color = Color.LightGray)
-                                Button(onClick = onCheckUpdate, modifier = Modifier.fillMaxWidth()) {
-                                    Text("فحص التحديثات")
-                                }
-                            }
-                        }
-                    }
-                    item {
-                        EmptyState("إعدادات أطلس", "سيتم توسيع إعدادات اللغة والمظهر وإمكانية الوصول في مرحلة لاحقة.")
-                    }
-                }
+    ) { padding ->
+        when {
+            browserPage != null -> {
+                val page = browserPage!!
+                InAppBrowserScreen(
+                    url = page.first,
+                    title = page.second,
+                    accent = accent,
+                    onClose = { browserPage = null }
+                )
             }
-        }
-    }
-
-    selectedSource?.let { source ->
-        AlertDialog(
-            onDismissRequest = { selectedSource = null },
-            containerColor = AtlasMidnight,
-            title = { Text(source.nameAr.ifBlank { source.nameEn }, color = Color.White) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Text(source.shortDescriptionAr, color = Color.White)
-                    Text("ماذا يقدم؟", color = AtlasTeal, fontWeight = FontWeight.Bold)
-                    Text(source.concreteOfferingAr, color = Color.LightGray)
-                    Text("كيف تبدأ؟", color = AtlasTeal, fontWeight = FontWeight.Bold)
-                    Text(source.exactStepsToStartAr, color = Color.LightGray)
-                    Text(
-                        if (source.lastVerifiedDate.isBlank()) "لم يُسجل تحقق فردي بعد"
-                        else "آخر تحقق: ${source.lastVerifiedDate}",
-                        color = if (source.lastVerifiedDate.isBlank()) AtlasGold else Color.LightGray,
-                        fontSize = 12.sp
+            selectedSource != null -> SourceDetailScreen(
+                source = selectedSource!!,
+                accent = accent,
+                onBack = { selectedSource = null },
+                onFavorite = {
+                    val updated = selectedSource!!.copy(isFavorite = !selectedSource!!.isFavorite)
+                    selectedSource = updated
+                    onUpdateSource(updated)
+                },
+                onSaveNotes = { notes ->
+                    val updated = selectedSource!!.copy(userNotes = notes)
+                    selectedSource = updated
+                    onUpdateSource(updated)
+                },
+                onOpenWebsite = { url, title -> browserPage = url to title }
+            )
+            else -> AnimatedContent(
+                targetState = activeTab,
+                modifier = Modifier.fillMaxSize().padding(padding),
+                transitionSpec = {
+                    (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 24 }) togetherWith
+                        (fadeOut(tween(150)) + slideOutVertically(tween(150)) { -it / 32 })
+                },
+                label = "atlas-tabs"
+            ) { tab ->
+                when (tab) {
+                    AtlasTab.DISCOVER, AtlasTab.SAVED -> DiscoverScreen(
+                        tab = tab,
+                        sources = sources,
+                        filteredSources = if (tab == AtlasTab.SAVED) filteredSources else filteredSources,
+                        selectedCategory = selectedCategory,
+                        onCategory = { selectedCategory = it },
+                        searchText = searchText,
+                        onSearchText = { searchText = it },
+                        onSearchWeb = { onSearchWeb(searchText) },
+                        webSearch = activeWebSearch,
+                        accent = accent,
+                        onOpenSource = { selectedSource = it },
+                        onOpenWeb = { hit -> browserPage = hit.url to hit.title },
+                        onFavorite = { source -> onUpdateSource(source.copy(isFavorite = !source.isFavorite)) }
                     )
-                    Text("نوع الوصول: ${accessTypeLabel(source.accessType)}", color = Color.LightGray, fontSize = 12.sp)
-                    Text("تصنيف الجهة: ${confidenceLabel(source.confidenceLevel)}", color = Color.LightGray, fontSize = 12.sp)
-                    Text("مرجع التحقق: ${source.verificationSource}", color = Color.LightGray, fontSize = 12.sp)
-                    if (source.confidenceLevel == "REVIEW_REQUIRED") {
-                        Text("تنبيه: هذا السجل مرشح أولي ولم يكتمل التحقق الفردي منه.", color = AtlasGold, fontSize = 12.sp)
-                    }
-                    Text(if (source.hasArabicInterface) "واجهة عربية متاحة" else "الواجهة العربية غير مؤكدة", color = Color.LightGray, fontSize = 12.sp)
+                    AtlasTab.SETTINGS -> SettingsScreen(
+                        count = sources.size,
+                        accent = accent,
+                        onAccentChange = onAccentChange,
+                        onCheckUpdate = onCheckUpdate
+                    )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    val url = source.officialUrl
-                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                    selectedSource = null
-                }) { Text("فتح الموقع") }
-            },
-            dismissButton = {
-                TextButton(onClick = { selectedSource = null }) { Text("إغلاق") }
             }
-        )
+        }
     }
 }
 
 @Composable
-private fun TemporalHero(title: String, subtitle: String, count: Int) {
-    val transition = rememberInfiniteTransition(label = "atlas-time-motion")
-    val glow by transition.animateFloat(
-        initialValue = 0.78f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "hero-glow"
-    )
-    val scale by animateFloatAsState(
-        targetValue = if (title.isNotBlank()) 1f else 0.98f,
-        animationSpec = tween(450),
-        label = "hero-scale"
-    )
-    Box(
-        Modifier.fillMaxWidth().scale(scale).clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color(0xFF183B4B).copy(alpha = glow),
-                        Color(0xFF26345D),
-                        Color(0xFF282747)
-                    )
-                )
-            )
+private fun DiscoverScreen(
+    tab: AtlasTab,
+    sources: List<KnowledgeSource>,
+    filteredSources: List<KnowledgeSource>,
+    selectedCategory: Int?,
+    onCategory: (Int?) -> Unit,
+    searchText: String,
+    onSearchText: (String) -> Unit,
+    onSearchWeb: () -> Unit,
+    webSearch: AtlasWebSearchUiState?,
+    accent: Color,
+    onOpenSource: (KnowledgeSource) -> Unit,
+    onOpenWeb: (WebSearchHit) -> Unit,
+    onFavorite: (KnowledgeSource) -> Unit
+) {
+    val savedCount = sources.count { it.isFavorite }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 17.dp, end = 17.dp, top = 12.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
-        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = AtlasTeal.copy(alpha = 0.15f), shape = CircleShape) {
-                    Text("  LIVE KNOWLEDGE  ", color = AtlasTeal, fontSize = 9.sp, modifier = Modifier.padding(vertical = 7.dp, horizontal = 4.dp))
+        item {
+            AtlasTopHeader(accent = accent, isSaved = tab == AtlasTab.SAVED)
+        }
+        item {
+            AtlasHero(
+                count = sources.size,
+                savedCount = savedCount,
+                accent = accent,
+                title = if (tab == AtlasTab.SAVED) "مساحتك المعرفية" else "افتح أبواب المعرفة",
+                subtitle = if (tab == AtlasTab.SAVED) "مصادرك التي اخترت الاحتفاظ بها." else "اكتشف، قارن، تعلّم، واحتفظ بما يستحق الرجوع إليه."
+            )
+        }
+        if (tab == AtlasTab.DISCOVER) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SectionHeading("ابحث في أطلس", "بحث محلي + بحث ويب")
+                    OutlinedTextField(
+                        value = searchText,
+                        onValueChange = onSearchText,
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(18.dp),
+                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null, tint = accent) },
+                        placeholder = { Text("مثال: استصلاح التربة الملحية") },
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onSearchWeb() })
+                    )
+                    GlowActionButton(
+                        label = if (webSearch?.isLoading == true) "جارٍ البحث في الويب..." else "ابحث في الويب",
+                        accent = accent,
+                        enabled = searchText.isNotBlank() && webSearch?.isLoading != true,
+                        onClick = onSearchWeb
+                    )
+                    Text("النتائج المحلية تظهر تلقائياً أثناء الكتابة.", color = AtlasMuted, fontSize = 11.sp)
                 }
-                Spacer(Modifier.weight(1f))
-                Box(Modifier.size(8.dp).clip(CircleShape).background(AtlasTeal.copy(alpha = glow)))
             }
-            Text(title, color = Color.White, fontSize = 27.sp, fontWeight = FontWeight.ExtraBold, lineHeight = 34.sp)
-            Text(subtitle, color = Color(0xFFD1DCEB), fontSize = 14.sp, lineHeight = 22.sp)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("$count", color = AtlasGold, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.width(7.dp))
-                Text("مصدر في مكتبتك الحالية", color = Color.LightGray, fontSize = 11.sp)
+            if (webSearch != null) {
+                when {
+                    webSearch.isLoading -> item { Text("يتم جمع النتائج وترتيبها...", color = accent, fontSize = 13.sp) }
+                    webSearch.result is WebSearchResult.Success -> {
+                        val hits = (webSearch.result as WebSearchResult.Success).hits
+                        item { SectionHeading("نتائج الويب", hits.size.toString() + " نتيجة") }
+                        if (hits.isEmpty()) item { EmptyState("لا توجد نتائج", "جرّب مصطلحاً آخر أو صياغة أدق.") }
+                        else items(hits, key = { it.url }) { hit ->
+                            WebHitCard(hit = hit, accent = accent, onOpen = { onOpenWeb(hit) })
+                        }
+                    }
+                    webSearch.result is WebSearchResult.NotConfigured -> item {
+                        EmptyState("البحث العالمي غير متصل", "المكتبة المحلية تعمل دون إنترنت. يلزم ضبط خادم البحث لتفعيل نتائج الويب.")
+                    }
+                    webSearch.result is WebSearchResult.Failure -> item {
+                        EmptyState("تعذر إكمال البحث", (webSearch.result as WebSearchResult.Failure).message)
+                    }
+                }
             }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionHeading("استكشف المجالات", "12 مجالاً")
+                }
+            }
+            items(AtlasCategories.chunked(2)) { pair ->
+                Row(horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+                    CategoryTile(
+                        category = pair[0],
+                        selected = selectedCategory == pair[0].id,
+                        accent = accent,
+                        modifier = Modifier.weight(1f),
+                        onClick = { onCategory(if (selectedCategory == pair[0].id) null else pair[0].id) }
+                    )
+                    if (pair.size > 1) {
+                        CategoryTile(
+                            category = pair[1],
+                            selected = selectedCategory == pair[1].id,
+                            accent = accent,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onCategory(if (selectedCategory == pair[1].id) null else pair[1].id) }
+                        )
+                    }
+                }
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SectionHeading("مصادر مختارة", filteredSources.size.toString() + " مصدر")
+                }
+            }
+        } else {
+            item { SectionHeading("محفوظاتك", savedCount.toString() + " مصدر محفوظ") }
+        }
+        if (filteredSources.isEmpty()) {
+            item {
+                EmptyState(
+                    if (tab == AtlasTab.SAVED) "لا توجد محفوظات بعد" else "لا توجد نتائج مطابقة",
+                    if (tab == AtlasTab.SAVED) "افتح أي مصدر واضغط حفظ لإضافته إلى مكتبتك." else "غيّر المجال أو جرّب كلمات بحث أخرى."
+                )
+            }
+        } else {
+            items(filteredSources, key = { it.id }) { source ->
+                SourceCard(
+                    source = source,
+                    accent = accent,
+                    onOpen = { onOpenSource(source) },
+                    onFavorite = { onFavorite(source) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AtlasTopHeader(accent: Color, isSaved: Boolean) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(45.dp).clip(RoundedCornerShape(15.dp))
+                .background(Brush.linearGradient(listOf(accent, AtlasBlue, AtlasViolet))),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Outlined.Language, contentDescription = null, tint = AtlasInk, modifier = Modifier.size(27.dp))
+        }
+        Spacer(Modifier.width(11.dp))
+        Column(Modifier.weight(1f)) {
+            Text("أطلس المعرفة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
+            Text("KNOWLEDGE ATLAS  /  " + if (isSaved) "LIBRARY" else "DISCOVERY", color = accent, fontSize = 9.sp, letterSpacing = 1.8.sp)
+        }
+        Surface(
+            shape = CircleShape,
+            color = Color(0xFF15233A),
+            modifier = Modifier.border(1.dp, accent.copy(alpha = 0.25f), CircleShape)
+        ) {
+            Text("12 مجال", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun AtlasHero(count: Int, savedCount: Int, accent: Color, title: String, subtitle: String) {
+    val transition = rememberInfiniteTransition(label = "atlas-ambient")
+    val glow by transition.animateFloat(
+        initialValue = 0.22f,
+        targetValue = 0.48f,
+        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "ambient-glow"
+    )
+    TiltPanel(
+        modifier = Modifier.fillMaxWidth().height(218.dp),
+        accent = accent,
+        background = Brush.linearGradient(listOf(Color(0xFF193B50), Color(0xFF302C5A), Color(0xFF111D35)))
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            Box(
+                Modifier.size(170.dp).align(Alignment.TopEnd).padding(0.dp)
+                    .background(Brush.radialGradient(listOf(accent.copy(alpha = glow), Color.Transparent)), CircleShape)
+            )
+            Box(
+                Modifier.size(92.dp).align(Alignment.BottomStart)
+                    .background(Brush.radialGradient(listOf(AtlasViolet.copy(alpha = glow), Color.Transparent)), CircleShape)
+            )
+            Column(
+                Modifier.fillMaxSize().padding(19.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(color = accent.copy(alpha = 0.14f), shape = CircleShape) {
+                        Text("✦  KNOWLEDGE ENGINE", color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("● LIVE", color = Color(0xFF83F1BE), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text(title, color = Color.White, fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.ExtraBold)
+                    Text(subtitle, color = Color(0xFFD1D9EE), fontSize = 12.sp, lineHeight = 19.sp)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    HeroMetric(count.toString(), "مصدر", accent)
+                    HeroMetric("12", "مجال", AtlasBlue)
+                    HeroMetric(savedCount.toString(), "محفوظ", AtlasGold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroMetric(value: String, label: String, tint: Color) {
+    Surface(
+        shape = RoundedCornerShape(13.dp),
+        color = Color(0xFF0A1428).copy(alpha = 0.62f),
+        modifier = Modifier.border(1.dp, tint.copy(alpha = 0.25f), RoundedCornerShape(13.dp))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(value, color = tint, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp)
+            Text(label, color = Color(0xFFC5D0E1), fontSize = 10.sp)
+        }
+    }
+}
+
+@Composable
+private fun TiltPanel(
+    modifier: Modifier = Modifier,
+    accent: Color,
+    background: Brush,
+    content: @Composable () -> Unit
+) {
+    var dragX by remember { mutableStateOf(0f) }
+    var dragY by remember { mutableStateOf(0f) }
+    val rotationX by animateFloatAsState(dragY, spring(dampingRatio = 0.52f, stiffness = 230f), label = "tilt-x")
+    val rotationY by animateFloatAsState(dragX, spring(dampingRatio = 0.52f, stiffness = 230f), label = "tilt-y")
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                this.rotationX = rotationX
+                this.rotationY = rotationY
+                cameraDistance = 18f * density
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragEnd = { dragX = 0f; dragY = 0f },
+                    onDragCancel = { dragX = 0f; dragY = 0f }
+                ) { change, amount ->
+                    change.consume()
+                    dragY = (dragY - amount.y * 0.22f).coerceIn(-8f, 8f)
+                    dragX = (dragX + amount.x * 0.22f).coerceIn(-8f, 8f)
+                }
+            }
+            .clip(RoundedCornerShape(27.dp))
+            .background(background)
+            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(27.dp))
+    ) {
+        content()
+    }
+}
+
+@Composable
+private fun SectionHeading(title: String, trailing: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        Text(trailing, color = AtlasMuted, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun CategoryTile(
+    category: AtlasCategory,
+    selected: Boolean,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val scale by animateFloatAsState(if (selected) 1.025f else 1f, label = "category-scale")
+    val borderColor by animateColorAsState(if (selected) category.color else category.color.copy(alpha = 0.22f), label = "category-border")
+    Card(
+        modifier = modifier.height(105.dp).graphicsLayer { scaleX = scale; scaleY = scale }
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(19.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF111D32)),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 9.dp else 2.dp)
+    ) {
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.linearGradient(
+                    listOf(category.color.copy(alpha = if (selected) 0.22f else 0.12f), Color(0xFF111D32), Color(0xFF17243A))
+                )
+            ).border(1.dp, borderColor, RoundedCornerShape(19.dp)).padding(12.dp)
+        ) {
+            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
+                            .background(category.color.copy(alpha = 0.18f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(category.symbol, color = category.color, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text(if (selected) "●" else "↗", color = category.color, fontSize = 12.sp)
+                }
+                Text(category.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GlowActionButton(label: String, accent: Color, enabled: Boolean = true, onClick: () -> Unit) {
+    var pressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "button-press")
+    Surface(
+        modifier = Modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Transparent
+    ) {
+        Box(
+            Modifier.background(
+                Brush.horizontalGradient(
+                    listOf(accent.copy(alpha = if (enabled) 0.95f else 0.26f), AtlasBlue.copy(alpha = if (enabled) 0.9f else 0.2f), AtlasViolet.copy(alpha = if (enabled) 0.86f else 0.18f))
+                )
+            ).padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(label, color = if (enabled) AtlasInk else AtlasMuted, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
         }
     }
 }
@@ -549,114 +631,337 @@ private fun TemporalHero(title: String, subtitle: String, count: Int) {
 @Composable
 private fun SourceCard(
     source: KnowledgeSource,
+    accent: Color,
     onOpen: () -> Unit,
     onFavorite: () -> Unit
 ) {
-    var pressed by remember { mutableStateOf(false) }
-    val elevationScale by animateFloatAsState(
-        targetValue = if (pressed) 0.985f else 1f,
-        animationSpec = tween(160),
-        label = "source-card-press"
-    )
+    val category = AtlasCategories.firstOrNull { it.id == source.categoryId }
     Card(
-        modifier = Modifier.fillMaxWidth().scale(elevationScale).animateContentSize()
-            .clickable { onOpen() },
-        shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = AtlasMidnight),
+        modifier = Modifier.fillMaxWidth().animateContentSize().clickable(onClick = onOpen),
+        shape = RoundedCornerShape(21.dp),
+        colors = CardDefaults.cardColors(containerColor = AtlasPanel),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
-        Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(42.dp).clip(RoundedCornerShape(13.dp))
-                        .background(Brush.linearGradient(listOf(Color(0xFF24566A), Color(0xFF353A68)))),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(source.nameEn.take(1).uppercase(), color = AtlasTeal, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Row(Modifier.fillMaxWidth()) {
+            Box(Modifier.width(4.dp).height(145.dp).background(category?.color ?: accent))
+            Column(
+                Modifier.weight(1f).padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier.size(39.dp).clip(RoundedCornerShape(12.dp))
+                            .background((category?.color ?: accent).copy(alpha = 0.16f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(category?.symbol ?: "✦", color = category?.color ?: accent, fontSize = 18.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(source.nameAr.ifBlank { source.nameEn }, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(source.nameEn, color = AtlasMuted, fontSize = 10.sp)
+                    }
+                    IconButton(onClick = onFavorite, modifier = Modifier.size(38.dp)) {
+                        Icon(Icons.Outlined.Bookmark, contentDescription = "حفظ المصدر", tint = if (source.isFavorite) AtlasGold else AtlasMuted)
+                    }
                 }
-                Spacer(Modifier.width(11.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(source.nameAr.ifBlank { source.nameEn }, color = Color.White, fontWeight = FontWeight.Bold)
-                    Text(source.nameEn, color = Color(0xFF9EADC2), fontSize = 11.sp)
+                Text(source.shortDescriptionAr, color = Color(0xFFD0D9E6), fontSize = 12.sp, lineHeight = 19.sp, maxLines = 3)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = CircleShape, color = (category?.color ?: accent).copy(alpha = 0.14f)) {
+                        Text(category?.title ?: "مجال آخر", color = category?.color ?: accent, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
+                    }
+                    Spacer(Modifier.weight(1f))
+                    Text("التفاصيل داخل أطلس  ›", color = accent, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = onFavorite) {
-                    Icon(
-                        Icons.Outlined.Bookmark,
-                        contentDescription = if (source.isFavorite) "إزالة من المحفوظات" else "حفظ المصدر",
-                        tint = if (source.isFavorite) AtlasGold else Color.LightGray
-                    )
-                }
-            }
-            Text(source.shortDescriptionAr, color = Color(0xFFD0D9E6), fontSize = 13.sp, lineHeight = 20.sp)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Surface(color = Color(0xFF1C4650), shape = RoundedCornerShape(50)) {
-                    Text(categoryLabel(source.categoryId), color = AtlasTeal, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
-                }
-                Text(
-                    if (source.lastVerifiedDate.isBlank()) "قيد المراجعة"
-                    else "تحقق: ${source.lastVerifiedDate}",
-                    color = if (source.lastVerifiedDate.isBlank()) AtlasGold else Color(0xFF9EADC2),
-                    fontSize = 10.sp
-                )
-                Spacer(Modifier.weight(1f))
-                Text("التفاصيل ←", color = AtlasTeal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }
 }
 
-private fun categoryLabel(id:Int):String=when(id) {
-  1->"التعليم"; 2->"الأبحاث"; 3->"البرمجة"; 4->"الذكاء الاصطناعي"
-  5->"الزراعة"; 6->"العلوم"; 7->"الأعمال"; 8->"البيانات"
-  9->"الصحة العامة"; 10->"الفكر والتاريخ"; 11->"الهندسة والطاقة"; 12->"الإنتاجية"
-  else->"مجال آخر"
-}
-private fun accessTypeLabel(value:String):String=when(value.uppercase()) {
-  "FREE"->"مجاني"; "PAID"->"مدفوع"; "MIXED"->"مجاني ومدفوع"
-  "REGISTRATION"->"يتطلب تسجيلاً"; else->"غير محدد"
-}
-private fun confidenceLabel(value:String):String=when(value.uppercase()) {
-  "REVIEW_REQUIRED"->"قيد المراجعة"; "OFFICIAL"->"جهة رسمية / موقع الجهة"; "ACADEMIC"->"أكاديمي"
-  "GOVERNMENT"->"حكومي"; "COMMUNITY"->"مجتمعي"; else->"غير مصنف"
+@Composable
+private fun SourceDetailScreen(
+    source: KnowledgeSource,
+    accent: Color,
+    onBack: () -> Unit,
+    onFavorite: () -> Unit,
+    onSaveNotes: (String) -> Unit,
+    onOpenWebsite: (String, String) -> Unit
+) {
+    var notes by remember(source.id) { mutableStateOf(source.userNotes.orEmpty()) }
+    var notesSaved by remember(source.id) { mutableStateOf(false) }
+    val category = AtlasCategories.firstOrNull { it.id == source.categoryId }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 17.dp, end = 17.dp, top = 12.dp, bottom = 30.dp),
+        verticalArrangement = Arrangement.spacedBy(15.dp)
+    ) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onBack) { Text("‹ رجوع", color = accent, fontWeight = FontWeight.Bold) }
+                Spacer(Modifier.weight(1f))
+                Text("صفحة المصدر", color = AtlasMuted, fontSize = 11.sp)
+            }
+        }
+        item {
+            TiltPanel(
+                modifier = Modifier.fillMaxWidth().height(180.dp),
+                accent = category?.color ?: accent,
+                background = Brush.linearGradient(listOf(Color(0xFF1B3D4E), Color(0xFF302A59), Color(0xFF111C31)))
+            ) {
+                Column(
+                    Modifier.fillMaxSize().padding(19.dp),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(category?.symbol ?: "✦", color = category?.color ?: accent, fontSize = 28.sp)
+                    Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                        Text(source.nameAr.ifBlank { source.nameEn }, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 23.sp)
+                        Text(source.nameEn, color = AtlasMuted, fontSize = 12.sp)
+                        Text(category?.title ?: "مجال آخر", color = category?.color ?: accent, fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+        item {
+            Text(source.shortDescriptionAr, color = Color(0xFFE0E7F3), fontSize = 14.sp, lineHeight = 23.sp)
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                GlowActionButton("فتح الموقع داخل التطبيق", accent, onClick = { onOpenWebsite(source.officialUrl, source.nameAr.ifBlank { source.nameEn }) })
+            }
+        }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Surface(
+                    modifier = Modifier.weight(1f).clickable(onClick = onFavorite),
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFF17243B)
+                ) {
+                    Text(if (source.isFavorite) "★  محفوظ" else "☆  أضف للمحفوظات", color = AtlasGold, fontWeight = FontWeight.Bold, modifier = Modifier.padding(13.dp))
+                }
+                Surface(shape = RoundedCornerShape(14.dp), color = Color(0xFF17243B)) {
+                    Text(accessTypeLabel(source.accessType), color = AtlasMuted, modifier = Modifier.padding(13.dp), fontSize = 11.sp)
+                }
+            }
+        }
+        item {
+            DetailSection(title = "ماذا يقدم هذا المصدر؟", body = source.concreteOfferingAr, accent = accent)
+        }
+        item {
+            DetailSection(title = "كيف تبدأ؟", body = source.exactStepsToStartAr, accent = accent)
+        }
+        item {
+            DetailSection(
+                title = "معلومات التحقق",
+                body = "الحالة: " + confidenceLabel(source.confidenceLevel) +
+                    "\nآخر تحقق: " + if (source.lastVerifiedDate.isBlank()) "لم يسجل تحقق فردي" else source.lastVerifiedDate +
+                    "\nمرجع التحقق: " + source.verificationSource +
+                    "\nاللغة العربية: " + if (source.hasArabicInterface) "متاحة" else "غير مؤكدة",
+                accent = AtlasGold
+            )
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("ملاحظاتك الخاصة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it; notesSaved = false },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 3,
+                    shape = RoundedCornerShape(16.dp),
+                    placeholder = { Text("اكتب ما تعلمته أو ما تريد مراجعته لاحقاً...") }
+                )
+                GlowActionButton(if (notesSaved) "تم حفظ الملاحظات" else "حفظ ملاحظاتي", accent, onClick = {
+                    onSaveNotes(notes)
+                    notesSaved = true
+                })
+            }
+        }
+    }
 }
 
 @Composable
-private fun WebSearchResultCard(
-    hit: WebSearchHit,
-    onOpen: () -> Unit
-) {
+private fun DetailSection(title: String, body: String, accent: Color) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFF121E33)).border(1.dp, accent.copy(alpha = 0.2f), RoundedCornerShape(18.dp))
+            .padding(15.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(title, color = accent, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Text(body.ifBlank { "لا توجد بيانات مدخلة لهذا الحقل بعد." }, color = Color(0xFFD2DAE8), fontSize = 12.sp, lineHeight = 20.sp)
+    }
+}
+
+@Composable
+private fun InAppBrowserScreen(url: String, title: String, accent: Color, onClose: () -> Unit) {
+    val context = LocalContext.current
+    var progress by remember { mutableStateOf(8) }
+    var failed by remember { mutableStateOf(false) }
+    val webView = remember {
+        WebView(context).apply {
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.allowFileAccessFromFileURLs = false
+            settings.allowUniversalAccessFromFileURLs = false
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.safeBrowsingEnabled = true
+            settings.builtInZoomControls = true
+            settings.displayZoomControls = false
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                    return request?.url?.scheme != "https"
+                }
+                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                    progress = 8
+                    failed = false
+                }
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    progress = 100
+                }
+                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                    if (request?.isForMainFrame == true) failed = true
+                }
+            }
+            setBackgroundColor(android.graphics.Color.rgb(8, 13, 25))
+        }
+    }
+    DisposableEffect(webView) {
+        onDispose {
+            webView.stopLoading()
+            webView.destroy()
+        }
+    }
+    androidx.activity.compose.BackHandler {
+        if (webView.canGoBack()) webView.goBack() else onClose()
+    }
+    Column(Modifier.fillMaxSize().background(AtlasInk)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TextButton(onClick = onClose) { Text("‹ رجوع", color = accent, fontWeight = FontWeight.Bold) }
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, maxLines = 1)
+                Text(url, color = AtlasMuted, fontSize = 9.sp, maxLines = 1)
+            }
+            TextButton(onClick = { webView.reload() }) { Text("↻", color = accent, fontSize = 20.sp) }
+        }
+        if (progress in 1..99) {
+            LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth(), color = accent)
+        }
+        if (failed) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                Text("تعذر تحميل الصفحة داخل أطلس.", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("قد يمنع الموقع العرض داخل التطبيقات أو يحتاج إلى اتصال مستقر.", color = AtlasMuted, fontSize = 12.sp)
+                TextButton(onClick = { failed = false; webView.reload() }) { Text("إعادة المحاولة", color = accent) }
+            }
+        }
+        AndroidView(
+            factory = { webView },
+            modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                if (view.url != url) view.loadUrl(url)
+            }
+        )
+    }
+}
+
+@Composable
+private fun WebHitCard(hit: WebSearchHit, accent: Color, onOpen: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = AtlasMidnight),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = AtlasPanel)
     ) {
-        Column(
-            Modifier.padding(17.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(hit.title, color = Color.White, fontWeight = FontWeight.Bold)
-            if (hit.snippet.isNotBlank()) {
-                Text(hit.snippet, color = Color(0xFFD0D9E6), fontSize = 13.sp, lineHeight = 20.sp)
-            }
-            Text(
-                "${hit.publisher.ifBlank { "الجهة الناشرة غير محددة" }} • ${hit.publisherType}",
-                color = AtlasTeal,
-                fontSize = 11.sp
-            )
-            if (hit.trustNote.isNotBlank()) {
-                Text(hit.trustNote, color = Color.LightGray, fontSize = 10.sp, lineHeight = 15.sp)
-            }
-            hit.retrievedAt?.let {
-                Text("وقت جلب النتيجة: $it", color = Color.LightGray, fontSize = 10.sp)
-            }
-            Text(
-                "درجة صلة آلية (لترتيب النتائج): ${(hit.relevance * 100).toInt()}%",
-                color = AtlasGold,
-                fontSize = 11.sp
-            )
-            Text("فتح المصدر ↗", color = AtlasTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+        Column(Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Text(hit.title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            if (hit.snippet.isNotBlank()) Text(hit.snippet, color = Color(0xFFD0D9E6), fontSize = 12.sp, lineHeight = 19.sp, maxLines = 4)
+            Text(hit.publisher.ifBlank { "الناشر غير محدد" } + " • " + hit.publisherType, color = accent, fontSize = 10.sp)
+            Text("افتح النتيجة داخل التطبيق  ›", color = accent, fontWeight = FontWeight.Bold, fontSize = 11.sp)
         }
+    }
+}
+
+@Composable
+private fun SettingsScreen(
+    count: Int,
+    accent: Color,
+    onAccentChange: (Color) -> Unit,
+    onCheckUpdate: () -> Unit
+) {
+    val palettes = listOf(AtlasTeal, AtlasBlue, AtlasViolet, Color(0xFFFF9B73), Color(0xFF8ED36D))
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item { AtlasTopHeader(accent, false) }
+        item { AtlasHero(count, 0, accent, "مركز التحكم", "تحكم في المظهر والتحديثات وتجربة أطلس.") }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SectionHeading("ألوان الواجهة", "اختر لون الإضاءة الأساسي")
+                Row(horizontalArrangement = Arrangement.spacedBy(13.dp)) {
+                    palettes.forEach { color ->
+                        val selected = color == accent
+                        Box(
+                            Modifier.size(42.dp).clip(CircleShape)
+                                .background(Brush.radialGradient(listOf(color, color.copy(alpha = 0.45f))))
+                                .border(if (selected) 3.dp else 1.dp, if (selected) Color.White else color.copy(alpha = 0.4f), CircleShape)
+                                .clickable { onAccentChange(color) }
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp))
+                    .background(AtlasPanel).padding(17.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(Icons.Outlined.SystemUpdate, contentDescription = null, tint = accent, modifier = Modifier.size(28.dp))
+                Text("تحديثات أطلس", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("يفحص وجود إصدار جديد، ويظل تثبيت أي تحديث بموافقة Android.", color = AtlasMuted, fontSize = 12.sp, lineHeight = 19.sp)
+                GlowActionButton("فحص التحديثات", accent, onClick = onCheckUpdate)
+            }
+        }
+        item {
+            DetailSection(
+                title = "حول التجربة",
+                body = "المكتبة المحلية تعمل دون اتصال. البحث العالمي وعرض المواقع داخل التطبيق يحتاجان إلى الإنترنت. تأثير الميل ثلاثي المنظور يعتمد على تحريك البطاقة باللمس، وهو تأثير واجهة وليس مجسماً ثلاثي الأبعاد مستقلاً.",
+                accent = AtlasBlue
+            )
+        }
+    }
+}
+
+@Composable
+private fun AtlasBottomBar(activeTab: AtlasTab, onSelect: (AtlasTab) -> Unit) {
+    NavigationBar(
+        containerColor = Color(0xFF101A2D),
+        contentColor = Color.White,
+        windowInsets = WindowInsets.navigationBars
+    ) {
+        NavigationBarItem(
+            selected = activeTab == AtlasTab.DISCOVER,
+            onClick = { onSelect(AtlasTab.DISCOVER) },
+            icon = { Icon(Icons.Outlined.Explore, contentDescription = null) },
+            label = { Text("اكتشف", fontSize = 10.sp) }
+        )
+        NavigationBarItem(
+            selected = activeTab == AtlasTab.SAVED,
+            onClick = { onSelect(AtlasTab.SAVED) },
+            icon = { Icon(Icons.Outlined.Bookmark, contentDescription = null) },
+            label = { Text("محفوظاتي", fontSize = 10.sp) }
+        )
+        NavigationBarItem(
+            selected = activeTab == AtlasTab.SETTINGS,
+            onClick = { onSelect(AtlasTab.SETTINGS) },
+            icon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
+            label = { Text("النظام", fontSize = 10.sp) }
+        )
     }
 }
 
@@ -664,17 +969,34 @@ private fun WebSearchResultCard(
 private fun EmptyState(title: String, subtitle: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
-        color = AtlasMidnight
+        shape = RoundedCornerShape(20.dp),
+        color = AtlasPanel
     ) {
         Column(
-            Modifier.padding(24.dp),
+            Modifier.padding(23.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(9.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Icon(Icons.Outlined.Search, contentDescription = null, tint = AtlasTeal, modifier = Modifier.size(30.dp))
             Text(title, color = Color.White, fontWeight = FontWeight.Bold)
-            Text(subtitle, color = Color.LightGray, fontSize = 13.sp, lineHeight = 20.sp)
+            Text(subtitle, color = AtlasMuted, fontSize = 12.sp, lineHeight = 19.sp)
         }
     }
+}
+
+private fun accessTypeLabel(value: String): String = when (value.uppercase()) {
+    "FREE" -> "مجاني"
+    "PAID" -> "مدفوع"
+    "MIXED" -> "مجاني ومدفوع"
+    "REGISTRATION" -> "يتطلب تسجيلاً"
+    else -> "غير محدد"
+}
+
+private fun confidenceLabel(value: String): String = when (value.uppercase()) {
+    "REVIEW_REQUIRED" -> "قيد المراجعة"
+    "OFFICIAL" -> "جهة رسمية / موقع الجهة"
+    "ACADEMIC" -> "أكاديمي"
+    "GOVERNMENT" -> "حكومي"
+    "COMMUNITY" -> "مجتمعي"
+    else -> "غير مصنف"
 }

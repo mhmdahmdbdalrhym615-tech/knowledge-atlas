@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.knowledgeatlas.app.data.model.KnowledgeSource
+import com.knowledgeatlas.app.search.AtlasLocalSearch
 import com.knowledgeatlas.app.search.AtlasSearchGateway
 import com.knowledgeatlas.app.search.WebSearchHit
 import com.knowledgeatlas.app.search.WebSearchResult
@@ -207,12 +208,9 @@ private fun AtlasHome(
         AtlasTab.SAVED -> sources.filter { it.isFavorite }
         else -> sources
     }
-    val filteredSources = tabSources.filter { source ->
-        (selectedCategory == null || source.categoryId == selectedCategory) &&
-            (searchText.isBlank() || listOf(
-                source.nameAr, source.nameEn, source.shortDescriptionAr,
-                source.shortDescriptionEn, source.tags, source.concreteOfferingAr
-            ).any { it.contains(searchText.trim(), ignoreCase = true) })
+    val rankedSources = AtlasLocalSearch.rank(tabSources, searchText)
+    val filteredSources = rankedSources.filter { source ->
+        selectedCategory == null || source.categoryId == selectedCategory
     }
     val activeWebSearch = webSearchState?.takeIf { it.query == searchText.trim() }
 
@@ -296,7 +294,7 @@ private fun AtlasHome(
                     if (tab == AtlasTab.DISCOVER) {
                         item {
                             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("ابحث بالمعنى أو بالمشكلة", fontWeight = FontWeight.SemiBold, color = Color.White)
+                                Text("اعثر على المصادر بالكلمات أو المصطلحات", fontWeight = FontWeight.SemiBold, color = Color.White)
                                 OutlinedTextField(
                                     value = searchText,
                                     onValueChange = { searchText = it },
@@ -326,7 +324,7 @@ private fun AtlasHome(
                             if (searchState.isLoading) {
                                 item {
                                     Text(
-                                        "جارٍ تحليل سؤالك والبحث عن مصادر ذات صلة...",
+                                        "جارٍ البحث عن نتائج الويب وفق كلمات الاستعلام...",
                                         color = AtlasTeal,
                                         fontSize = 13.sp
                                     )
@@ -653,7 +651,7 @@ private fun WebSearchResultCard(
                 Text("وقت جلب النتيجة: $it", color = Color.LightGray, fontSize = 10.sp)
             }
             Text(
-                "درجة ترتيب النتيجة: ${(hit.relevance * 100).toInt()}%",
+                "درجة صلة آلية (لترتيب النتائج): ${(hit.relevance * 100).toInt()}%",
                 color = AtlasGold,
                 fontSize = 11.sp
             )

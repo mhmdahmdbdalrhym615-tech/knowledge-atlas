@@ -93,10 +93,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.knowledgeatlas.app.data.model.KnowledgeSource
+import com.knowledgeatlas.app.search.AtlasSearchGateway
+import com.knowledgeatlas.app.search.WebSearchHit
+import com.knowledgeatlas.app.search.WebSearchResult
 import com.knowledgeatlas.app.update.DirectUpdateManager
 import com.knowledgeatlas.app.update.UpdateResult
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 private val AtlasInk = Color(0xFF101827)
@@ -110,16 +112,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val dao = (application as AtlasApplication).database.knowledgeDao()
         val updateManager = DirectUpdateManager(this)
-        val query = MutableStateFlow("")
-        val visibleSources = combine(dao.getAllSources(), query) { all, text ->
-            if (text.isBlank()) all else all.filter { source ->
-                listOf(
-                    source.nameAr, source.nameEn, source.shortDescriptionAr,
-                    source.shortDescriptionEn, source.tags, source.concreteOfferingAr,
-                    source.exactStepsToStartAr
-                ).any { it.contains(text.trim(), ignoreCase = true) }
-            }
-        }
+        val searchGateway = AtlasSearchGateway()
+        val webSearchState = MutableStateFlow<AtlasWebSearchUiState?>(null)
 
         setContent {
             val darkColors = darkColorScheme(
@@ -136,9 +130,29 @@ class MainActivity : ComponentActivity() {
             )
             MaterialTheme(colorScheme = darkColors) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    val sources by visibleSources.collectAsState(initial = emptyList())
+                    val sources by dao.getAllSources().collectAsState(initial = emptyList())
+                    val webSearch by webSearchState.collectAsState()
                     AtlasHome(
                         sources = sources,
+                        webSearchState = webSearch,
+                        onSearchWeb = { rawQuery ->
+                            val requestedQuery = rawQuery.trim()
+                            if (requestedQuery.isNotEmpty()) {
+                                webSearchState.value = AtlasWebSearchUiState(
+                                    query = requestedQuery,
+                                    isLoading = true
+                                )
+                                lifecycleScope.launch {
+                                    val result = searchGateway.search(requestedQuery)
+                                    if (webSearchState.value?.query == requestedQuery) {
+                                        webSearchState.value = AtlasWebSearchUiState(
+                                            query = requestedQuery,
+                                            result = result
+                                        )
+                                    }
+                                }
+                            }
+                        },
                         onToggleFavorite = { source ->
                             lifecycleScope.launch { dao.updateSource(source.copy(isFavorite = !source.isFavorite)) }
                         },
@@ -160,12 +174,20 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class AtlasWebSearchUiState(
+    val query: String,
+    val result: WebSearchResult? = null,
+    val isLoading: Boolean = false
+)
+
 private enum class AtlasTab { DISCOVER, SAVED, SETTINGS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AtlasHome(
     sources: List<KnowledgeSource>,
+    webSearchState: AtlasWebSearchUiState?,
+    onSearchWeb: (String) -> Unit,
     onToggleFavorite: (KnowledgeSource) -> Unit,
     onCheckUpdate: () -> Unit
 ) {
@@ -191,6 +213,7 @@ private fun AtlasHome(
                 source.shortDescriptionEn, source.tags, source.concreteOfferingAr
             ).any { it.contains(searchText.trim(), ignoreCase = true) })
     }
+    val activeWebSearch = webSearchState?.takeIf { it.query == searchText.trim() }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -287,8 +310,84 @@ private fun AtlasHome(
                                     shape = RoundedCornerShape(18.dp),
                                     leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                                     placeholder = { Text("مثال: كيف أحسّن خصوبة التربة؟") },
-                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
+                                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                    keyboardActions = KeyboardActions(
+                                        onSearch = { onSearchWeb(searchText) }
+                                    )
                                 )
+                                Button(
+                                    onClick = { onSearchWeb(searchText) },
+                                    enabled = searchText.isNotBlank() && activeWebSearch?.isLoading != true,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        if (activeWebSearch?.isLoading == true) "جارٍ البحث في الويب..."
+                                        else "ابحث في الويب الأوسع"
+                                    )
+                                }
+                            }
+                        }
+                        activeWebSearch?.let { searchState ->
+                            if (searchState.isLoading) {
+                                item {
+                                    Text(
+                                        "جارٍ تحليل سؤالك والبحث عن مصادر ذات صلة...",
+                                        color = AtlasTeal,
+                                        fontSize = 13.sp
+                                    )
+                                }
+                            }
+                            searchState.result?.let { result ->
+                                when (result) {
+                                    is WebSearchResult.Success -> {
+                                        item {
+                                            Text(
+                                                "نتائج البحث من الويب (${result.hits.size})",
+                                                color = AtlasTeal,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                        if (result.hits.isEmpty()) {
+                                            item {
+                                                EmptyState(
+                                                    "لم تظهر نتائج",
+                                                    "جرّب صياغة السؤال بطريقة أخرى."
+                                                )
+                                            }
+                                        } else {
+                                            items(result.hits, key = { it.url }) { hit ->
+                                                WebSearchResultCard(
+                                                    hit = hit,
+                                                    onOpen = {
+                                                        runCatching {
+                                                            context.startActivity(
+                                                                Intent(Intent.ACTION_VIEW, Uri.parse(hit.url))
+                                                            )
+                                                        }.onFailure {
+                                                            Toast.makeText(
+                                                                context,
+                                                                "تعذر فتح رابط المصدر.",
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                    WebSearchResult.NotConfigured -> item {
+                                        EmptyState(
+                                            "محرك البحث غير مربوط بعد",
+                                            "البحث داخل مكتبة أطلس يعمل محلياً. البحث العالمي سيعمل بعد إعداد عنوان Search API على الخادم."
+                                        )
+                                    }
+                                    is WebSearchResult.Failure -> item {
+                                        EmptyState(
+                                            "تعذر إكمال البحث",
+                                            result.message
+                                        )
+                                    }
+                                }
                             }
                         }
                         item {
@@ -493,6 +592,43 @@ private fun SourceCard(
                 Spacer(Modifier.weight(1f))
                 Text("التفاصيل ←", color = AtlasTeal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }
+        }
+    }
+}
+
+@Composable
+private fun WebSearchResultCard(
+    hit: WebSearchHit,
+    onOpen: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = AtlasMidnight),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            Modifier.padding(17.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(hit.title, color = Color.White, fontWeight = FontWeight.Bold)
+            if (hit.snippet.isNotBlank()) {
+                Text(hit.snippet, color = Color(0xFFD0D9E6), fontSize = 13.sp, lineHeight = 20.sp)
+            }
+            Text(
+                hit.publisher.ifBlank { "الجهة الناشرة غير محددة" },
+                color = AtlasTeal,
+                fontSize = 11.sp
+            )
+            hit.verifiedAt?.let {
+                Text("تاريخ التحقق المرسل من الخادم: $it", color = Color.LightGray, fontSize = 10.sp)
+            }
+            Text(
+                "صلة النتيجة بالسؤال: ${(hit.relevance * 100).toInt()}%",
+                color = AtlasGold,
+                fontSize = 11.sp
+            )
+            Text("فتح المصدر ↗", color = AtlasTeal, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }

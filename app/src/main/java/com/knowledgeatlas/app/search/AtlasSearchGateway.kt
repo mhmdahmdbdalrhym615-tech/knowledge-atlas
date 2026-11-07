@@ -54,10 +54,15 @@ class AtlasSearchGateway {
                     doOutput = true
                     setRequestProperty("Content-Type", "application/json; charset=utf-8")
                     setRequestProperty("Accept", "application/json")
+                    setRequestProperty("User-Agent", "KnowledgeAtlas-Android/1.0")
                 }
+                val arabicCharacters = query.count { it in '\u0600'..'\u06FF' || it in '\u0750'..'\u077F' }
+                val latinCharacters = query.count { it in 'A'..'Z' || it in 'a'..'z' }
+                val queryLanguage = if (arabicCharacters >= latinCharacters) "ar" else "en"
+
                 val request = JSONObject()
                     .put("query", query.trim())
-                    .put("language", "ar")
+                    .put("language", queryLanguage)
                     .put("mode", "hybrid")
                     .put("limit", limit.coerceIn(1, 50))
 

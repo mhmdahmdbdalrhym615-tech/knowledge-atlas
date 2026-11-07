@@ -134,3 +134,21 @@ jobs:
           for hit in hits[:5]:
               print(f"- {hit.get('title', '(untitled)')} | {hit.get('publisher', '')} | {hit.get('url', '')}")
           PY
+
+  catalog-link-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Audit all catalogue HTTPS endpoints
+        run: python tools/audit_catalog_links.py --out-dir catalog-audit
+      - name: Upload catalogue audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: knowledge-atlas-catalog-audit
+          path: |
+            catalog-audit/catalog-link-audit.json
+            catalog-audit/catalog-link-audit.csv
+            catalog-audit/catalog-link-audit-summary.json
+          if-no-files-found: error
+          retention-days: 30

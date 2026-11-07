@@ -52,7 +52,7 @@ def normalize_query(value:str)->str:
 def expand_query(value:str)->str:
     normalized=normalize_query(value); hints=[]
     for keys, expansion in _EXPANSIONS:
-        if any(normalize_query(key) in normalized for key in keys): hints.extend(expansion.split())
+        if any(normalize_query(key) in normalized for key in keys): hints.append(expansion)
     hints=list(dict.fromkeys(hints))
     return value.strip() if not hints else value.strip()+" "+" ".join(hints)
 def classify_publisher(hostname:str)->tuple[str,str]:

@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.core.content.FileProvider
 import com.knowledgeatlas.app.BuildConfig
+import com.knowledgeatlas.app.security.AtlasUrlPolicy
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -32,11 +33,11 @@ class DirectUpdateManager(private val activity: ComponentActivity) {
     suspend fun checkAndDownload(): UpdateResult = withContext(Dispatchers.IO) {
         if (!BuildConfig.SELF_UPDATE_ENABLED) return@withContext UpdateResult.Disabled
         val manifestUrl = BuildConfig.UPDATE_MANIFEST_URL
-        if (!isHttpsUrl(manifestUrl)) return@withContext UpdateResult.Failed("رابط خدمة التحديث غير مضبوط أو لا يستخدم HTTPS.")
+        if (!AtlasUrlPolicy.isHttpsUrl(manifestUrl)) return@withContext UpdateResult.Failed("رابط خدمة التحديث غير مضبوط أو لا يستخدم HTTPS.")
         try {
             val update = readManifest(manifestUrl)
             if (update.versionCode <= BuildConfig.VERSION_CODE) return@withContext UpdateResult.UpToDate
-            if (!isHttpsUrl(update.apkUrl) ||
+            if (!AtlasUrlPolicy.isHttpsUrl(update.apkUrl) ||
                 !update.sha256.matches(Regex("[a-fA-F0-9]{64}")) ||
                 !update.versionName.matches(Regex("[0-9A-Za-z.+_-]{1,40}"))
             ) return@withContext UpdateResult.Failed("بيانات التحديث غير صالحة.")
@@ -132,10 +133,6 @@ class DirectUpdateManager(private val activity: ComponentActivity) {
         return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun isHttpsUrl(value:String):Boolean=runCatching {
-        val url=URL(value)
-        url.protocol.equals("https",true) && url.host.isNotBlank() && url.userInfo==null
-    }.getOrDefault(false)
 
     private companion object { const val MAX_APK_BYTES=300L*1024*1024 }
 }

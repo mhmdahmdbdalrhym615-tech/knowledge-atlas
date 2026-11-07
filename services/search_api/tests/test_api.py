@@ -1,0 +1,54 @@
+import httpx
+from fastapi.testclient import TestClient
+
+from app import main
+
+
+def test_health_reports_unconfigured_provider(monkeypatch):
+    monkeypatch.setattr(main, "SEARXNG_BASE_URL", "")
+    with TestClient(main.app) as client:
+        response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "search_provider": "not_configured"}
+
+
+def test_search_rejects_queries_shorter_than_two_characters():
+    with TestClient(main.app) as client:
+        response = client.post("/search", json={"query": "x"})
+    assert response.status_code == 422
+
+
+def test_search_returns_service_unavailable_when_provider_missing(monkeypatch):
+    monkeypatch.setattr(main, "SEARXNG_BASE_URL", "")
+    with TestClient(main.app) as client:
+        response = client.post("/search", json={"query": "soil salinity"})
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"].lower()
+
+
+def test_search_filters_unsafe_urls_and_deduplicates_results(monkeypatch):
+    monkeypatch.setattr(main, "SEARXNG_BASE_URL", "https://searxng.example.test")
+    real_async_client = httpx.AsyncClient
+
+    def handler(request):
+        assert request.url.scheme == "https"
+        return httpx.Response(200, request=request, json={"results": [
+            {"title": "FAO soil resources", "url": "https://www.fao.org/soils", "content": "Soil resources and land management.", "score": 1.0},
+            {"title": "Duplicate result", "url": "https://www.fao.org/soils#section", "content": "Duplicate entry.", "score": 0.8},
+            {"title": "Plain HTTP result", "url": "http://example.org/resource", "content": "Must be rejected.", "score": 10.0},
+        ]})
+
+    def mock_async_client(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", mock_async_client)
+    with TestClient(main.app) as client:
+        response = client.post("/search", json={"query": "soil resources", "limit": 10})
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query"] == "soil resources"
+    assert len(payload["results"]) == 1
+    assert payload["results"][0]["url"] == "https://www.fao.org/soils"
+    assert payload["results"][0]["publisherType"] == "منظمة دولية"
+    assert payload["results"][0]["retrievedAt"]

@@ -157,6 +157,6 @@ keytool -genkeypair -v -keystore knowledge-atlas-release.jks -alias knowledge-at
 - `ATLAS_UPDATE_MANIFEST_URL`: عنوان HTTPS لبيان التحديث.
 - `ATLAS_PUBLIC_APK_URL`: رابط HTTPS عام مباشر لملف APK.
 
-بعد حفظ الأسرار، شغّل `Actions → Signed Android Release → Run workflow` وحدد اسم الإصدار ورقم `versionCode) أكبر من آخر إصدار. يتحقق المسار من توقيع الحزمة وينتج APK وبيان تحديث وبصمة SHA-256 كـ artifact. يتوقف المسار إذا لم يكن رابط APK العام مضبوطاً.
+بعد حفظ الأسرار، شغّل `Actions → Signed Android Release → Run workflow` وحدد اسم الإصدار ورقم `versionCode` أكبر من آخر إصدار. يتحقق المسار من توقيع الحزمة وينتج APK وبيان تحديث وبصمة SHA-256 كـ artifact. يتوقف المسار إذا لم يكن رابط APK العام مضبوطاً.
 
 **ما زال النشر الحي واختبار التحديث بحاجة إلى استضافة عامة عبر HTTPS لخدمة البحث وملف البيان وAPK، ثم اختبار التثبيت والترقية على هاتف Android حقيقي. لا يوجد حالياً مفتاح توقيع أو عنوان استضافة مضبوط في المشروع.**

@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "com.knowledgeatlas.app"
-        minSdk = 24
+        minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"

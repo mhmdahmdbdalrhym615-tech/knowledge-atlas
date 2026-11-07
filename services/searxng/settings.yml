@@ -1,4 +1,8 @@
-use_default_settings: true
+use_default_settings:
+  engines:
+    remove:
+      - ahmia
+      - torch
 
 general:
   debug: false
@@ -15,8 +19,6 @@ server:
   port: 8080
   limiter: true
   image_proxy: false
-  # Set SEARXNG_SECRET as a Railway runtime variable.
 
 valkey:
-  # Railway private network endpoint.
   url: valkey://valkey.railway.internal:6379/0

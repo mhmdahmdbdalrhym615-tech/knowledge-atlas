@@ -32,11 +32,21 @@ jobs:
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
-      - name: Build direct-distribution debug APK
-        run: ./gradlew --no-daemon --stacktrace assembleDirectDebug
+      - name: Build direct-distribution debug APK with live search endpoint
+        env:
+          ATLAS_SEARCH_API_BASE_URL: https://atlas-search-api-production.up.railway.app
+        run: |
+          ./gradlew --no-daemon --stacktrace \
+            -PATLAS_SEARCH_API_BASE_URL="$ATLAS_SEARCH_API_BASE_URL" \
+            assembleDirectDebug
 
       - name: Run Android unit tests
-        run: ./gradlew --no-daemon --stacktrace testDirectDebugUnitTest
+        env:
+          ATLAS_SEARCH_API_BASE_URL: https://atlas-search-api-production.up.railway.app
+        run: |
+          ./gradlew --no-daemon --stacktrace \
+            -PATLAS_SEARCH_API_BASE_URL="$ATLAS_SEARCH_API_BASE_URL" \
+            testDirectDebugUnitTest
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4

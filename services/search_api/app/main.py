@@ -83,6 +83,28 @@ async def health() -> dict[str, str]:
     }
 
 
+@app.get("/health/ready")
+async def readiness() -> dict[str, object]:
+    """Check that the private SearXNG service is reachable from this API."""
+    if not SEARXNG_BASE_URL:
+        raise HTTPException(status_code=503, detail="Search provider is not configured.")
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=min(SEARCH_TIMEOUT_SECONDS, 8.0),
+            follow_redirects=False,
+            headers={"User-Agent": "KnowledgeAtlas-Readiness/0.3"},
+        ) as client:
+            response = await client.get(f"{SEARXNG_BASE_URL}/healthz")
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=503, detail="Search provider is not reachable."
+        ) from exc
+
+    return {"status": "ready", "search_provider": "reachable", "provider_status": response.status_code}
+
+
 @app.post("/search")
 async def search(
     search_request: SearchRequest,

@@ -22,7 +22,7 @@ object AtlasLocalSearch {
 
     private val synonyms = mapOf(
         "تربه" to setOf("soil", "ارض", "اراضي", "land"),
-        "ارض" to setOf("soil", "تربه", "land"),
+        "ارض" to setOf("soil", "تربه", "اراضي", "land"),
         "ملوحه" to setOf("salinity", "salt", "املاح", "ملح", "soil salinity"),
         "ملح" to setOf("salinity", "salt", "املاح", "ملوحه"),
         "املاح" to setOf("salinity", "salt", "ملح", "ملوحه"),

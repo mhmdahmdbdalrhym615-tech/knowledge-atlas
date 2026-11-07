@@ -68,3 +68,47 @@ def test_search_rate_limit_returns_429_and_retry_after(monkeypatch):
     assert first.status_code == 503
     assert second.status_code == 429
     assert int(second.headers["Retry-After"]) > 0
+
+
+def test_readiness_checks_private_search_provider(monkeypatch):
+    monkeypatch.setattr(main, "SEARXNG_BASE_URL", "http://searxng.internal")
+    real_async_client = httpx.AsyncClient
+
+    def handler(request):
+        assert request.url.path == "/healthz"
+        return httpx.Response(200, request=request, text="ok")
+
+    def mock_async_client(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", mock_async_client)
+    with TestClient(main.app) as client:
+        response = client.get("/health/ready")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "ready",
+        "search_provider": "reachable",
+        "provider_status": 200,
+    }
+
+
+def test_readiness_reports_unreachable_provider(monkeypatch):
+    monkeypatch.setattr(main, "SEARXNG_BASE_URL", "http://searxng.internal")
+
+    def handler(request):
+        return httpx.Response(503, request=request)
+
+    monkeypatch.setattr(
+        main.httpx,
+        "AsyncClient",
+        lambda *args, **kwargs: httpx.AsyncClient(
+            transport=httpx.MockTransport(handler)
+        ),
+    )
+    with TestClient(main.app) as client:
+        response = client.get("/health/ready")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Search provider is not reachable."

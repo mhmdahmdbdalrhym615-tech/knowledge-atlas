@@ -478,6 +478,9 @@ private fun AtlasHome(
                     Text("نوع الوصول: ${accessTypeLabel(source.accessType)}", color = Color.LightGray, fontSize = 12.sp)
                     Text("تصنيف الجهة: ${confidenceLabel(source.confidenceLevel)}", color = Color.LightGray, fontSize = 12.sp)
                     Text("مرجع التحقق: ${source.verificationSource}", color = Color.LightGray, fontSize = 12.sp)
+                    if (source.confidenceLevel == "REVIEW_REQUIRED") {
+                        Text("تنبيه: هذا السجل مرشح أولي ولم يكتمل التحقق الفردي منه.", color = AtlasGold, fontSize = 12.sp)
+                    }
                     Text(if (source.hasArabicInterface) "واجهة عربية متاحة" else "الواجهة العربية غير مؤكدة", color = Color.LightGray, fontSize = 12.sp)
                 }
             },
@@ -605,7 +608,7 @@ private fun accessTypeLabel(value:String):String=when(value.uppercase()) {
   "REGISTRATION"->"يتطلب تسجيلاً"; else->"غير محدد"
 }
 private fun confidenceLabel(value:String):String=when(value.uppercase()) {
-  "OFFICIAL"->"جهة رسمية / موقع الجهة"; "ACADEMIC"->"أكاديمي"
+  "REVIEW_REQUIRED"->"قيد المراجعة"; "OFFICIAL"->"جهة رسمية / موقع الجهة"; "ACADEMIC"->"أكاديمي"
   "GOVERNMENT"->"حكومي"; "COMMUNITY"->"مجتمعي"; else->"غير مصنف"
 }
 

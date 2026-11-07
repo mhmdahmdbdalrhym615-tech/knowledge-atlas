@@ -21,6 +21,9 @@ interface KnowledgeDao {
     @Query("SELECT * FROM knowledge_sources WHERE categoryId = :categoryId")
     fun getSourcesByCategory(categoryId: Int): Flow<List<KnowledgeSource>>
 
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertSourcesIfMissing(sources: List<KnowledgeSource>)
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSources(sources: List<KnowledgeSource>)
 

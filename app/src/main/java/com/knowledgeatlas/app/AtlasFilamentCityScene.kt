@@ -300,7 +300,6 @@ fun AtlasFilamentCityScene(modifier: Modifier = Modifier) {
         SphereNode(
             radius = 19.5f,
             position = Position(x = 0f, y = 1.7f, z = 0f),
-            scale = Scale(x = 1f, y = 0.78f, z = 1f),
             materialInstance = waterGlass,
             stacks = 28,
             slices = 40

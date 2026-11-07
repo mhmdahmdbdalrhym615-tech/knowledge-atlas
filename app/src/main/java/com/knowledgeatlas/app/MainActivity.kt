@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -25,6 +26,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -82,6 +84,22 @@ private fun AtlasHome(
     onSearchChanged: (String) -> Unit
 ) {
     val context = LocalContext.current
+    var selectedCategory by remember { mutableStateOf<Int?>(null) }
+    val categories = listOf(
+        1 to "التعليم والدورات",
+        2 to "البحث والمكتبات",
+        3 to "البرمجة والأنظمة",
+        4 to "الذكاء الاصطناعي",
+        5 to "الزراعة والتربة",
+        6 to "العلوم الطبيعية",
+        7 to "الاقتصاد والأعمال",
+        8 to "البيانات والخرائط",
+        9 to "الصحة العامة",
+        10 to "الفكر والتاريخ",
+        11 to "الهندسة والطاقة",
+        12 to "الإنتاجية والمعرفة"
+    )
+    val displayedSources = sources.filter { selectedCategory == null || it.categoryId == selectedCategory }
 
     Scaffold(
         topBar = {
@@ -122,6 +140,25 @@ private fun AtlasHome(
             }
 
             item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    item {
+                        FilterChip(
+                            selected = selectedCategory == null,
+                            onClick = { selectedCategory = null },
+                            label = { Text("الكل") }
+                        )
+                    }
+                    items(categories) { category ->
+                        FilterChip(
+                            selected = selectedCategory == category.first,
+                            onClick = { selectedCategory = category.first },
+                            label = { Text(category.second) }
+                        )
+                    }
+                }
+            }
+
+            item {
                 OutlinedTextField(
                     value = searchText,
                     onValueChange = onSearchChanged,
@@ -141,7 +178,7 @@ private fun AtlasHome(
                 )
             }
 
-            if (sources.isEmpty()) {
+            if (displayedSources.isEmpty()) {
                 item {
                     Surface(
                         shape = RoundedCornerShape(18.dp),
@@ -154,7 +191,7 @@ private fun AtlasHome(
                     }
                 }
             } else {
-                items(sources, key = { it.id }) { source ->
+                items(displayedSources, key = { it.id }) { source ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),

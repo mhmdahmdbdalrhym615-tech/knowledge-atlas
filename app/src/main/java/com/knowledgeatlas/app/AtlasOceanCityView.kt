@@ -143,7 +143,10 @@ private data class CityCitizen(
     var gaitPhase: Float,
     val outfit: FloatArray,
     val skin: FloatArray,
-    val accent: FloatArray
+    val accent: FloatArray,
+    val hair: FloatArray,
+    val trousers: FloatArray,
+    val footwear: FloatArray
 )
 
 private class OceanCityRenderer(
@@ -218,6 +221,21 @@ private class OceanCityRenderer(
                 floatArrayOf(0.18f, 0.95f, 0.88f, 1f),
                 floatArrayOf(0.38f, 0.68f, 1f, 1f),
                 floatArrayOf(0.95f, 0.66f, 0.30f, 1f)
+            )[index % 3],
+            hair = arrayOf(
+                floatArrayOf(0.055f, 0.035f, 0.028f, 1f),
+                floatArrayOf(0.16f, 0.095f, 0.045f, 1f),
+                floatArrayOf(0.035f, 0.045f, 0.065f, 1f)
+            )[index % 3],
+            trousers = arrayOf(
+                floatArrayOf(0.045f, 0.12f, 0.18f, 1f),
+                floatArrayOf(0.11f, 0.15f, 0.22f, 1f),
+                floatArrayOf(0.16f, 0.18f, 0.22f, 1f)
+            )[index % 3],
+            footwear = arrayOf(
+                floatArrayOf(0.025f, 0.035f, 0.052f, 1f),
+                floatArrayOf(0.12f, 0.085f, 0.055f, 1f),
+                floatArrayOf(0.055f, 0.075f, 0.09f, 1f)
             )[index % 3]
         )
     }
@@ -313,6 +331,9 @@ private class OceanCityRenderer(
         drawDistricts()
         drawMovingStructures()
         drawCitizens()
+        drawMaintenanceRobots()
+        drawSubmersibles()
+        drawCoralGardens()
         drawParticles()
 
         // Keep the city continuously alive with a slow, subtle camera drift only while idle.
@@ -394,31 +415,60 @@ private class OceanCityRenderer(
         for (node in nodes) {
             val active = node.id == selectedId
             val glowBoost = if (active) 1.65f else 1f
-            draw(cylinder, node.x, 0.12f, node.z, 1.05f, 0.22f, 1.05f, rgb(0.035f, 0.20f, 0.27f), scaleColor(node.color, 0.55f * glowBoost))
-            draw(torus, node.x, 0.25f, node.z, if (active) 1.05f else 0.92f, 1f, if (active) 1.05f else 0.92f,
-                rgb(0.05f, 0.24f, 0.31f), scaleColor(node.color, 1.15f * glowBoost))
+            val stone = rgb(0.075f, 0.22f, 0.30f)
+            val trim = scaleColor(node.color, if (active) 1.45f else 0.82f)
+
+            // Structural plinth, outer ring and a layered building silhouette.
+            draw(cylinder, node.x, 0.12f, node.z, 1.08f, 0.22f, 1.08f, stone, scaleColor(node.color, 0.62f * glowBoost))
+            draw(torus, node.x, 0.25f, node.z, if (active) 1.08f else 0.94f, 1f, if (active) 1.08f else 0.94f,
+                rgb(0.035f, 0.16f, 0.23f), trim)
+            draw(cylinder, node.x, 0.34f, node.z, 0.78f, 0.18f, 0.78f,
+                rgb(0.08f, 0.24f, 0.31f), scaleColor(node.color, 0.34f * glowBoost))
 
             val h = node.height
             if (node.id % 3 == 0 || node.id == 5 || node.id == 9) {
-                draw(cylinder, node.x, 0.42f + h * 0.46f, node.z, 0.61f, h, 0.61f,
-                    rgb(0.11f, 0.32f, 0.43f), scaleColor(node.color, 0.22f * glowBoost))
+                draw(cylinder, node.x, 0.46f + h * 0.46f, node.z, 0.64f, h, 0.64f,
+                    rgb(0.10f, 0.29f, 0.38f), scaleColor(node.color, 0.25f * glowBoost))
+                draw(cylinder, node.x, 0.86f + h, node.z, 0.72f, 0.10f, 0.72f,
+                    rgb(0.10f, 0.28f, 0.36f), scaleColor(node.color, 0.42f * glowBoost))
+                draw(torus, node.x, 0.86f + h, node.z, 0.70f, 1f, 0.70f,
+                    rgb(0.05f, 0.18f, 0.25f), trim)
             } else {
-                draw(cube, node.x, 0.42f + h * 0.46f, node.z, 1.0f, h, 0.84f,
-                    rgb(0.10f, 0.29f, 0.41f), scaleColor(node.color, 0.20f * glowBoost))
+                draw(cube, node.x, 0.43f + h * 0.46f, node.z, 1.0f, h, 0.84f,
+                    rgb(0.085f, 0.25f, 0.36f), scaleColor(node.color, 0.24f * glowBoost))
+                draw(cube, node.x, 0.58f + h, node.z, 1.10f, 0.11f, 0.94f,
+                    rgb(0.12f, 0.31f, 0.40f), trim)
             }
 
-            draw(torus, node.x, 0.72f, node.z, 0.68f, 1f, 0.68f,
-                rgb(0.10f, 0.26f, 0.37f), scaleColor(node.color, 0.90f * glowBoost))
-            draw(torus, node.x, 1.32f, node.z, 0.68f, 1f, 0.68f,
-                rgb(0.10f, 0.26f, 0.37f), scaleColor(node.color, 0.78f * glowBoost))
+            // Two illuminated facade bands give each tower depth at a distance.
+            draw(torus, node.x, 0.78f, node.z, 0.70f, 1f, 0.70f,
+                rgb(0.08f, 0.22f, 0.32f), scaleColor(node.color, 1.05f * glowBoost))
+            draw(torus, node.x, 1.36f, node.z, 0.70f, 1f, 0.70f,
+                rgb(0.08f, 0.22f, 0.32f), scaleColor(node.color, 0.92f * glowBoost))
             draw(sphere, node.x, 0.92f + h, node.z, 0.39f, 0.30f, 0.39f,
-                rgb(0.18f, 0.47f, 0.55f), scaleColor(node.color, 1.10f * glowBoost))
+                rgb(0.16f, 0.42f, 0.52f), scaleColor(node.color, 1.08f * glowBoost))
             draw(cylinder, node.x, 1.20f + h, node.z, 0.09f, 0.62f, 0.09f,
                 rgb(0.22f, 0.56f, 0.61f), scaleColor(node.color, 1.2f * glowBoost))
 
+            // Recessed-looking illuminated windows and entrance columns.
+            for (level in 0..2) {
+                val windowY = 0.63f + level * 0.42f + h * 0.32f
+                draw(cube, node.x + 0.24f, windowY, node.z + 0.425f,
+                    0.16f, 0.21f, 0.025f, rgb(0.035f, 0.16f, 0.22f), scaleColor(node.color, 1.65f * glowBoost))
+                draw(cube, node.x - 0.24f, windowY, node.z + 0.425f,
+                    0.16f, 0.21f, 0.025f, rgb(0.035f, 0.16f, 0.22f), scaleColor(node.color, 1.35f * glowBoost))
+            }
+            draw(personCylinder, node.x - 0.45f, 0.46f, node.z + 0.46f,
+                0.045f, 0.48f, 0.045f, rgb(0.16f, 0.34f, 0.42f), trim)
+            draw(personCylinder, node.x + 0.45f, 0.46f, node.z + 0.46f,
+                0.045f, 0.48f, 0.045f, rgb(0.16f, 0.34f, 0.42f), trim)
+
+            // Floating crown and antenna.
+            draw(torus, node.x, 1.15f + h, node.z, 0.92f, 1f, 0.92f,
+                rgb(0.08f, 0.25f, 0.36f), scaleColor(node.color, 1.35f * glowBoost))
             if (node.id == 4 || node.id == 11) {
-                draw(torus, node.x, 1.15f + h, node.z, 0.92f, 1f, 0.92f,
-                    rgb(0.08f, 0.25f, 0.36f), scaleColor(node.color, 1.5f * glowBoost))
+                draw(torus, node.x, 1.48f + h, node.z, 0.98f, 1f, 0.98f,
+                    rgb(0.08f, 0.25f, 0.36f), scaleColor(node.color, 1.55f * glowBoost))
             }
         }
     }
@@ -465,55 +515,178 @@ private class OceanCityRenderer(
             val x = cos(citizen.angle) * citizen.radius
             val z = sin(citizen.angle) * citizen.radius
             val walking = citizen.pauseRemaining <= 0f
-            val bob = if (walking) kotlin.math.abs(sin(citizen.gaitPhase)) * 0.025f
-                else sin(frameTime * 1.2f + citizen.id) * 0.008f
-            val swing = if (walking) sin(citizen.gaitPhase) * 25f
-                else sin(frameTime * 1.4f + citizen.id) * 3.5f
-            val yaw = (-citizen.angle + if (citizen.direction < 0f) PI.toFloat() else 0f) *
+            val phase = citizen.gaitPhase
+            val bob = if (walking) abs(sin(phase * 2f)) * 0.025f
+                else sin(frameTime * 1.1f + citizen.id) * 0.008f
+            val armSwing = if (walking) sin(phase) * 25f
+                else sin(frameTime * 1.25f + citizen.id) * 4f
+            val legSwing = if (walking) sin(phase) * 27f else 0f
+            val kneeBend = if (walking) max(0f, sin(phase + 0.8f)) * 18f else 0f
+            val facing = (-citizen.angle + if (citizen.direction < 0f) PI.toFloat() else 0f) *
                 (180f / PI.toFloat())
-            val footY = 0.16f
-            val armOffset = sin(swing * (PI.toFloat() / 180f)) * 0.055f
-            val legOffset = sin((-swing * 0.9f) * (PI.toFloat() / 180f)) * 0.065f
+            val look = if (walking) 0f else sin(frameTime * 0.7f + citizen.id * 1.7f) * 9f
+            val base = 0.15f
 
-            draw(
-                personCylinder, x, footY + 0.405f + bob, z,
-                0.22f, 0.34f, 0.13f, citizen.outfit,
-                citizen.accent, rotationY = yaw
-            )
-            draw(
-                personSphere, x, footY + 0.665f + bob, z,
-                0.105f, 0.125f, 0.105f, citizen.skin,
-                citizen.accent, rotationY = yaw
-            )
-            draw(
-                personCylinder, x - 0.15f, footY + 0.415f + bob,
-                z + armOffset, 0.065f, 0.235f, 0.065f,
-                citizen.outfit, citizen.accent,
-                rotationY = yaw, rotationZ = swing
-            )
-            draw(
-                personCylinder, x + 0.15f, footY + 0.415f + bob,
-                z - armOffset, 0.065f, 0.235f, 0.065f,
-                citizen.outfit, citizen.accent,
-                rotationY = yaw, rotationZ = -swing
-            )
-            draw(
-                personCylinder, x - 0.058f, footY + 0.145f,
-                z - legOffset, 0.073f, 0.265f, 0.073f,
-                rgb(0.045f, 0.12f, 0.18f), citizen.accent,
-                rotationY = yaw, rotationZ = -swing * 0.9f
-            )
-            draw(
-                personCylinder, x + 0.058f, footY + 0.145f,
-                z + legOffset, 0.073f, 0.265f, 0.073f,
-                rgb(0.045f, 0.12f, 0.18f), citizen.accent,
-                rotationY = yaw, rotationZ = swing * 0.9f
-            )
-            draw(
-                cube, x, footY + 0.465f + bob, z + 0.073f,
-                0.055f, 0.075f, 0.025f,
-                citizen.accent, citizen.accent, rotationY = yaw
-            )
+            // Torso: layered clothing, collar, belt and shoulder silhouette.
+            drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.49f + bob, 0f,
+                0.175f, 0.245f, 0.112f, citizen.outfit, citizen.accent)
+            drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.30f + bob, 0f,
+                0.145f, 0.105f, 0.10f, citizen.trousers, citizen.accent)
+            drawCitizenPart(personCylinder, x, z, facing, 0f, base + 0.67f + bob, 0f,
+                0.052f, 0.10f, 0.052f, citizen.skin, citizen.skin)
+            drawCitizenPart(personSphere, x, z, facing, -0.145f, base + 0.60f + bob, 0f,
+                0.075f, 0.085f, 0.09f, citizen.outfit, citizen.accent)
+            drawCitizenPart(personSphere, x, z, facing, 0.145f, base + 0.60f + bob, 0f,
+                0.075f, 0.085f, 0.09f, citizen.outfit, citizen.accent)
+
+            // Head, hair cap, ears and a readable face profile.
+            drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.79f + bob, 0f,
+                0.105f, 0.128f, 0.102f, citizen.skin, citizen.accent, look)
+            drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.888f + bob, -0.012f,
+                0.108f, 0.052f, 0.108f, citizen.hair, citizen.hair, look)
+            drawCitizenPart(personSphere, x, z, facing, -0.105f, base + 0.79f + bob, 0f,
+                0.025f, 0.035f, 0.025f, citizen.skin, citizen.skin)
+            drawCitizenPart(personSphere, x, z, facing, 0.105f, base + 0.79f + bob, 0f,
+                0.025f, 0.035f, 0.025f, citizen.skin, citizen.skin)
+            drawCitizenPart(personSphere, x, z, facing, -0.038f, base + 0.80f + bob, 0.091f,
+                0.014f, 0.012f, 0.012f, rgb(0.018f, 0.035f, 0.045f), citizen.accent)
+            drawCitizenPart(personSphere, x, z, facing, 0.038f, base + 0.80f + bob, 0.091f,
+                0.014f, 0.012f, 0.012f, rgb(0.018f, 0.035f, 0.045f), citizen.accent)
+            drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.765f + bob, 0.108f,
+                0.018f, 0.022f, 0.018f, citizen.skin, citizen.skin)
+            drawCitizenPart(personSphere, x, z, facing, 0f, base + 0.732f + bob, 0.098f,
+                0.025f, 0.008f, 0.01f, rgb(0.28f, 0.075f, 0.075f), citizen.accent)
+
+            // Two-piece moving arms with elbows and hands.
+            drawCitizenPart(personCylinder, x, z, facing, -0.205f, base + 0.485f + bob, 0f,
+                0.052f, 0.18f, 0.052f, citizen.outfit, citizen.accent, 0f, armSwing * 0.58f)
+            drawCitizenPart(personSphere, x, z, facing, -0.205f, base + 0.385f + bob, 0f,
+                0.052f, 0.052f, 0.052f, citizen.outfit, citizen.accent)
+            drawCitizenPart(personCylinder, x, z, facing, -0.205f, base + 0.275f + bob, 0f,
+                0.043f, 0.15f, 0.043f, citizen.skin, citizen.accent, 0f, armSwing * 0.82f)
+            drawCitizenPart(personSphere, x, z, facing, -0.205f, base + 0.185f + bob, 0.012f,
+                0.043f, 0.05f, 0.04f, citizen.skin, citizen.skin)
+
+            drawCitizenPart(personCylinder, x, z, facing, 0.205f, base + 0.485f + bob, 0f,
+                0.052f, 0.18f, 0.052f, citizen.outfit, citizen.accent, 0f, -armSwing * 0.58f)
+            drawCitizenPart(personSphere, x, z, facing, 0.205f, base + 0.385f + bob, 0f,
+                0.052f, 0.052f, 0.052f, citizen.outfit, citizen.accent)
+            drawCitizenPart(personCylinder, x, z, facing, 0.205f, base + 0.275f + bob, 0f,
+                0.043f, 0.15f, 0.043f, citizen.skin, citizen.accent, 0f, -armSwing * 0.82f)
+            drawCitizenPart(personSphere, x, z, facing, 0.205f, base + 0.185f + bob, 0.012f,
+                0.043f, 0.05f, 0.04f, citizen.skin, citizen.skin)
+
+            // Articulated legs and footwear. Opposite phase produces a natural walk rhythm.
+            drawCitizenPart(personCylinder, x, z, facing, -0.075f, base + 0.155f, 0f,
+                0.064f, 0.18f, 0.064f, citizen.trousers, citizen.accent, 0f, -legSwing * 0.72f)
+            drawCitizenPart(personSphere, x, z, facing, -0.075f, base + 0.055f, 0.045f,
+                0.062f, 0.062f, 0.062f, citizen.trousers, citizen.accent)
+            drawCitizenPart(personCylinder, x, z, facing, -0.075f, base - 0.055f, 0.025f,
+                0.048f, 0.17f, 0.048f, citizen.trousers, citizen.accent, 0f, kneeBend - legSwing * 0.38f)
+            drawCitizenPart(cube, x, z, facing, -0.075f, base - 0.145f, 0.075f,
+                0.105f, 0.065f, 0.17f, citizen.footwear, citizen.accent, 0f, -legSwing * 0.72f)
+
+            drawCitizenPart(personCylinder, x, z, facing, 0.075f, base + 0.155f, 0f,
+                0.064f, 0.18f, 0.064f, citizen.trousers, citizen.accent, 0f, legSwing * 0.72f)
+            drawCitizenPart(personSphere, x, z, facing, 0.075f, base + 0.055f, 0.045f,
+                0.062f, 0.062f, 0.062f, citizen.trousers, citizen.accent)
+            drawCitizenPart(personCylinder, x, z, facing, 0.075f, base - 0.055f, 0.025f,
+                0.048f, 0.17f, 0.048f, citizen.trousers, citizen.accent, 0f, -kneeBend + legSwing * 0.38f)
+            drawCitizenPart(cube, x, z, facing, 0.075f, base - 0.145f, 0.075f,
+                0.105f, 0.065f, 0.17f, citizen.footwear, citizen.accent, 0f, legSwing * 0.72f)
+
+            // Small badge gives citizens a visible identity marker without a UI label.
+            draw(cube, x, base + 0.49f + bob, z + 0.116f, 0.045f, 0.055f, 0.018f,
+                citizen.accent, citizen.accent, rotationY = facing)
+        }
+    }
+
+    private fun drawCitizenPart(
+        mesh: GlMesh,
+        rootX: Float,
+        rootZ: Float,
+        facingDegrees: Float,
+        localX: Float,
+        y: Float,
+        localZ: Float,
+        sx: Float,
+        sy: Float,
+        sz: Float,
+        color: FloatArray,
+        glow: FloatArray,
+        yawOffset: Float = 0f,
+        rotationZ: Float = 0f
+    ) {
+        val radians = facingDegrees * (PI.toFloat() / 180f)
+        val worldX = rootX + localX * cos(radians) + localZ * sin(radians)
+        val worldZ = rootZ - localX * sin(radians) + localZ * cos(radians)
+        draw(mesh, worldX, y, worldZ, sx, sy, sz, color, glow,
+            rotationY = facingDegrees + yawOffset, rotationZ = rotationZ)
+    }
+
+    private fun drawMaintenanceRobots() {
+        for (index in 0..1) {
+            val orbit = frameTime * (if (index == 0) 0.30f else -0.22f) + index * PI.toFloat()
+            val x = cos(orbit) * 6.7f
+            val z = sin(orbit) * 6.7f
+            val y = 0.38f + sin(frameTime * 1.6f + index) * 0.08f
+            val yaw = -orbit * 180f / PI.toFloat() + if (index == 0) 90f else -90f
+            val shell = if (index == 0) rgb(0.20f, 0.48f, 0.56f) else rgb(0.36f, 0.34f, 0.25f)
+            val lamp = if (index == 0) rgb(0.10f, 0.98f, 0.86f) else rgb(1f, 0.66f, 0.24f)
+            draw(personCylinder, x, y + 0.20f, z, 0.20f, 0.28f, 0.18f, shell, lamp, rotationY = yaw)
+            draw(personSphere, x, y + 0.43f, z, 0.15f, 0.13f, 0.15f, shell, lamp, rotationY = yaw)
+            draw(personSphere, x, y + 0.44f, z + 0.125f, 0.045f, 0.035f, 0.025f, lamp, lamp, rotationY = yaw)
+            draw(personCylinder, x - 0.22f, y + 0.19f, z, 0.045f, 0.22f, 0.045f, shell, lamp, rotationY = yaw, rotationZ = 22f)
+            draw(personCylinder, x + 0.22f, y + 0.19f, z, 0.045f, 0.22f, 0.045f, shell, lamp, rotationY = yaw, rotationZ = -22f)
+            draw(torus, x, y + 0.04f, z, 0.27f, 1f, 0.27f, rgb(0.05f, 0.18f, 0.23f), lamp)
+        }
+    }
+
+    private fun drawSubmersibles() {
+        for (index in 0..2) {
+            val speed = 0.14f + index * 0.025f
+            val orbit = frameTime * speed + index * (2f * PI.toFloat() / 3f)
+            val radius = 8.2f + index * 0.28f
+            val x = cos(orbit) * radius
+            val z = sin(orbit) * radius
+            val y = 1.35f + sin(frameTime * 0.8f + index) * 0.42f
+            val yaw = -orbit * 180f / PI.toFloat() + 90f
+            val hull = if (index == 1) rgb(0.55f, 0.37f, 0.18f) else rgb(0.11f, 0.30f, 0.39f)
+            val glow = if (index == 1) rgb(1f, 0.68f, 0.28f) else rgb(0.12f, 0.86f, 1f)
+            draw(personCylinder, x, y, z, 0.30f, 0.72f, 0.30f, hull, glow, yaw, 90f)
+            draw(personSphere, x, y, z + 0.34f, 0.19f, 0.16f, 0.19f, hull, glow, rotationY = yaw)
+            draw(personSphere, x, y, z - 0.34f, 0.16f, 0.14f, 0.16f, hull, glow, rotationY = yaw)
+            draw(personSphere, x, y + 0.02f, z + 0.10f, 0.12f, 0.10f, 0.12f,
+                rgb(0.08f, 0.22f, 0.28f), glow, rotationY = yaw)
+            draw(torus, x, y, z, 0.35f, 1f, 0.35f, rgb(0.035f, 0.16f, 0.22f), glow)
+            draw(personCylinder, x, y - 0.22f, z - 0.50f, 0.035f, 0.25f, 0.035f,
+                rgb(0.12f, 0.27f, 0.32f), glow, rotationY = yaw, rotationZ = 90f)
+        }
+    }
+
+    private fun drawCoralGardens() {
+        val gardenPoints = arrayOf(
+            floatArrayOf(-8.4f, -7.2f), floatArrayOf(8.1f, -7.8f),
+            floatArrayOf(-8.6f, 7.4f), floatArrayOf(8.5f, 7.1f),
+            floatArrayOf(0f, 9.0f)
+        )
+        for (index in gardenPoints.indices) {
+            val x = gardenPoints[index][0]
+            val z = gardenPoints[index][1]
+            val sway = sin(frameTime * 1.15f + index) * 7f
+            val coral = when (index % 3) {
+                0 -> rgb(0.12f, 0.52f, 0.48f)
+                1 -> rgb(0.42f, 0.30f, 0.57f)
+                else -> rgb(0.63f, 0.39f, 0.26f)
+            }
+            for (branch in 0..2) {
+                val side = (branch - 1) * 0.17f
+                val height = 0.50f + branch * 0.12f
+                draw(personCylinder, x + side, height * 0.5f, z, 0.045f, height, 0.045f,
+                    coral, scaleColor(coral, 1.45f), rotationZ = sway + side * 24f)
+                draw(personSphere, x + side * 1.5f, height + 0.12f, z,
+                    0.12f, 0.14f, 0.12f, scaleColor(coral, 1.18f), scaleColor(coral, 1.65f))
+            }
         }
     }
 
@@ -769,9 +942,16 @@ private class OceanCityRenderer(
                 float waveB = sin(vWorld.z * 2.7 - uTime * 0.63);
                 float caustic = pow(max(waveA * waveB, 0.0), 5.0) * 0.34;
                 vec3 viewDir = normalize(uEye - vWorld);
-                float rim = pow(1.0 - max(dot(viewDir, n), 0.0), 2.2);
-                vec3 lit = uColor.rgb * (0.30 + diffuse * 0.78 + caustic);
-                lit += uGlow.rgb * (0.17 + caustic * 1.2 + rim * 0.58);
+                vec3 halfDir = normalize(lightDir + viewDir);
+                float ndv = max(dot(viewDir, n), 0.0);
+                float rim = pow(1.0 - ndv, 2.2);
+                float roughnessHint = clamp(0.72 - max(max(uGlow.r, uGlow.g), uGlow.b) * 0.32, 0.24, 0.72);
+                float specularPower = mix(10.0, 54.0, 1.0 - roughnessHint);
+                float specular = pow(max(dot(n, halfDir), 0.0), specularPower);
+                float fresnel = pow(1.0 - ndv, 4.0);
+                vec3 lit = uColor.rgb * (0.28 + diffuse * 0.76 + caustic);
+                lit += uGlow.rgb * (0.13 + caustic * 1.25 + rim * 0.52);
+                lit += vec3(0.72, 0.91, 1.0) * specular * (0.12 + fresnel * 0.34);
                 float distanceToEye = length(uEye - vWorld);
                 float fog = clamp((distanceToEye - 9.0) / 25.0, 0.0, 0.82);
                 vec3 deepWater = vec3(0.012, 0.105, 0.145);

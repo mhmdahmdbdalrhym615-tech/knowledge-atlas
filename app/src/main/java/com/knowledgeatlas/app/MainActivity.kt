@@ -92,6 +92,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -1023,11 +1025,31 @@ private fun AtlasOceanCityPortal(
 ) {
     val context = LocalContext.current
     var cityView by remember { mutableStateOf<AtlasOceanCityView?>(null) }
+    var immersiveCityView by remember { mutableStateOf<AtlasOceanCityView?>(null) }
+    var immersive by remember { mutableStateOf(false) }
     var selectedDistrict by remember { mutableStateOf<Int?>(null) }
     val owner = context as? LifecycleOwner
 
-    DisposableEffect(cityView, owner) {
+    // Pause the small portal preview while the full-screen world is open.
+    DisposableEffect(cityView, owner, immersive) {
         val view = cityView
+        if (immersive) view?.onPause() else view?.onResume()
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> if (immersive) view?.onPause() else view?.onResume()
+                Lifecycle.Event.ON_PAUSE -> view?.onPause()
+                else -> Unit
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose {
+            owner?.lifecycle?.removeObserver(observer)
+            view?.onPause()
+        }
+    }
+
+    DisposableEffect(immersiveCityView, owner) {
+        val view = immersiveCityView
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> view?.onResume()
@@ -1048,8 +1070,13 @@ private fun AtlasOceanCityPortal(
                 Text("مدينة أطلس الغارقة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
                 Text("عالم ثلاثي الأبعاد حيّ • المس المباني لاستكشافها", color = AtlasTeal, fontSize = 10.sp)
             }
-            Surface(shape = CircleShape, color = Color(0xFF123A45)) {
-                Text("LIVE  3D", color = AtlasTeal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = CircleShape, color = Color(0xFF123A45)) {
+                    Text("LIVE  3D", color = AtlasTeal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+                }
+                TextButton(onClick = { immersive = true }) {
+                    Text("دخول العالم", color = accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                }
             }
         }
         Box(
@@ -1104,6 +1131,61 @@ private fun AtlasOceanCityPortal(
                     Column(Modifier.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(pair.first, color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                         Text(pair.second, color = AtlasMuted, fontSize = 8.sp)
+                    }
+                }
+            }
+        }
+    }
+    
+    if (immersive) {
+        Dialog(
+            onDismissRequest = { immersive = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(Modifier.fillMaxSize().background(Color(0xFF031725))) {
+                AndroidView(
+                    factory = { ctx ->
+                        AtlasOceanCityView(ctx) { id ->
+                            selectedDistrict = id
+                            onBuildingSelected(id)
+                        }.also { immersiveCityView = it }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    update = { if (immersiveCityView !== it) immersiveCityView = it }
+                )
+                Row(
+                    Modifier.align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0xD9081D2B))
+                        .padding(horizontal = 14.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("أطلس — المدينة الغارقة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                        Text("تجول بحرية • اسحب لتغيير اتجاه الرؤية • قرّب بإصبعين", color = AtlasTeal, fontSize = 9.sp)
+                    }
+                    TextButton(onClick = { immersive = false }) {
+                        Text("خروج", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Surface(
+                    Modifier.align(Alignment.BottomCenter).padding(14.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xD9081D2B),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.38f))
+                ) {
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            selectedDistrict?.let { id ->
+                                if (id == 0) "مركز القيادة — قلب أطلس" else AtlasCategories.firstOrNull { it.id == id }?.title ?: "منطقة أطلس"
+                            } ?: "اختر مبنى أو راقب حركة سكان المدينة",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                        Text("9 سكان متحركون • روبوتات خدمة • مركبات غواصة", color = accent, fontSize = 9.sp)
                     }
                 }
             }

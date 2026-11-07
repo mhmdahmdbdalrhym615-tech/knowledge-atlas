@@ -27,16 +27,16 @@ jobs:
         with:
           packages: ""
 
-      - name: Install Android SDK platform and build tools
+      - name: Install stable Android SDK platform and build tools
         run: |
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager "platforms;android-37" "build-tools;37.0.0" "platform-tools"
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Build direct-distribution debug APK
-        run: ./gradlew --no-daemon assembleDirectDebug
+        run: ./gradlew --no-daemon --stacktrace assembleDirectDebug
 
       - name: Run Android unit tests
-        run: ./gradlew --no-daemon testDirectDebugUnitTest
+        run: ./gradlew --no-daemon --stacktrace testDirectDebugUnitTest
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -44,6 +44,7 @@ jobs:
           name: knowledge-atlas-direct-debug
           path: app/build/outputs/apk/direct/debug/*.apk
           if-no-files-found: error
+          retention-days: 14
 
   search-api-tests:
     runs-on: ubuntu-latest

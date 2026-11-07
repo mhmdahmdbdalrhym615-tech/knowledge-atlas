@@ -33,7 +33,7 @@
 
 ## إعداد بيئة البناء
 
-المتطلبات: JDK 17، Android SDK API 37، Gradle 9.4.1.
+المتطلبات: JDK 17، Android SDK API 36، Gradle 9.4.1.
 
 من مجلد المشروع، بعد توفير Gradle Wrapper scripts وملف wrapper JAR أو تثبيت Gradle محلياً (GitHub Actions يثبت Gradle وAndroid SDK أثناء CI):
 ```bash

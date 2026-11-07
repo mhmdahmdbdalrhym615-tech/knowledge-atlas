@@ -129,3 +129,34 @@ gradle testDirectDebugUnitTest
 الخدمة غير منشورة بعد. تحتاج إلى إعداد `SEARXNG_BASE_URL` في بيئة الخادم ونشر API عبر HTTPS. تفاصيل التشغيل والحدود في `services/search_api/README.md`.
 
 **مهم:** النسخة الحالية ليست بحثاً دلالياً عصبياً؛ لا تستخدم embeddings أو vector database بعد. كما أن الكتالوج ما زال تجريبياً ولم يصل إلى هدف 100+ مصدر موثق.
+
+
+## إصدار Release موقّع
+
+أضيف مسار GitHub Actions منفصل لإنتاج نسخة `directRelease` والتحقق من توقيع APK باستخدام `apksigner`. لا يتم تخزين ملف التوقيع أو كلمات مروره في المستودع.
+
+### إنشاء مفتاح الإصدار الدائم مرة واحدة على Windows
+
+باستخدام JDK 17 أو أحدث في PowerShell:
+
+```powershell
+keytool -genkeypair -v -keystore knowledge-atlas-release.jks -alias knowledge-atlas -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Knowledge Atlas, OU=Release, O=Knowledge Atlas, C=EG"
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD/knowledge-atlas-release.jks")) | Set-Clipboard
+```
+
+احتفظ بملف JKS وكلمات المرور في أماكن آمنة. فقدان المفتاح يمنع تحديثات التثبيت فوق النسخ الموقعة به، وتسريبه يعرّض هوية التطبيق للخطر. لا ترفع الملف إلى GitHub ولا ترسله في المحادثة.
+
+في إعدادات المستودع `Settings → Secrets and variables → Actions` أضف الأسرار:
+- `ATLAS_RELEASE_KEYSTORE_BASE64`: النص المنسوخ من PowerShell.
+- `ATLAS_RELEASE_STORE_PASSWORD`: كلمة مرور ملف JKS.
+- `ATLAS_RELEASE_KEY_ALIAS`: `knowledge-atlas`.
+- `ATLAS_RELEASE_KEY_PASSWORD`: كلمة مرور المفتاح.
+
+وأضف المتغيرات التالية عند تجهيز الاستضافة:
+- `ATLAS_SEARCH_API_BASE_URL`: عنوان HTTPS الأساسي لخدمة البحث، دون `/search`.
+- `ATLAS_UPDATE_MANIFEST_URL`: عنوان HTTPS لبيان التحديث.
+- `ATLAS_PUBLIC_APK_URL`: رابط HTTPS عام مباشر لملف APK.
+
+بعد حفظ الأسرار، شغّل `Actions → Signed Android Release → Run workflow` وحدد اسم الإصدار ورقم `versionCode) أكبر من آخر إصدار. يتحقق المسار من توقيع الحزمة وينتج APK وبيان تحديث وبصمة SHA-256 كـ artifact. يتوقف المسار إذا لم يكن رابط APK العام مضبوطاً.
+
+**ما زال النشر الحي واختبار التحديث بحاجة إلى استضافة عامة عبر HTTPS لخدمة البحث وملف البيان وAPK، ثم اختبار التثبيت والترقية على هاتف Android حقيقي. لا يوجد حالياً مفتاح توقيع أو عنوان استضافة مضبوط في المشروع.**

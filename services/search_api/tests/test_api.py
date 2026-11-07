@@ -97,16 +97,16 @@ def test_readiness_checks_private_search_provider(monkeypatch):
 def test_readiness_reports_unreachable_provider(monkeypatch):
     monkeypatch.setattr(main, "SEARXNG_BASE_URL", "http://searxng.internal")
 
+    real_async_client = httpx.AsyncClient
+
     def handler(request):
         return httpx.Response(503, request=request)
 
-    monkeypatch.setattr(
-        main.httpx,
-        "AsyncClient",
-        lambda *args, **kwargs: httpx.AsyncClient(
-            transport=httpx.MockTransport(handler)
-        ),
-    )
+    def mock_async_client(*args, **kwargs):
+        kwargs["transport"] = httpx.MockTransport(handler)
+        return real_async_client(*args, **kwargs)
+
+    monkeypatch.setattr(main.httpx, "AsyncClient", mock_async_client)
     with TestClient(main.app) as client:
         response = client.get("/health/ready")
 

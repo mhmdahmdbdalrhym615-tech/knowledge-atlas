@@ -68,6 +68,21 @@ fun AtlasFilamentCityScene(modifier: Modifier = Modifier) {
         label = "resident-d"
     )
     val residentAngles = listOf(residentA, residentB, residentC, residentD)
+    val whaleA by promenade.animateFloat(
+        initialValue = 18f, targetValue = 378f,
+        animationSpec = infiniteRepeatable(tween(86000), RepeatMode.Restart),
+        label = "whale-a"
+    )
+    val whaleB by promenade.animateFloat(
+        initialValue = 195f, targetValue = 555f,
+        animationSpec = infiniteRepeatable(tween(104000), RepeatMode.Restart),
+        label = "whale-b"
+    )
+    val bubbleMotion by promenade.animateFloat(
+        initialValue = 0f, targetValue = 6.28318f,
+        animationSpec = infiniteRepeatable(tween(13000), RepeatMode.Restart),
+        label = "bubble-motion"
+    )
 
     Scene(
         modifier = modifier,
@@ -102,6 +117,24 @@ fun AtlasFilamentCityScene(modifier: Modifier = Modifier) {
                 count = 3
             )
         }
+        val whales = remember(modelLoader) {
+            modelLoader.createInstancedModel(
+                assetFileLocation = "models/atlas_whale.glb",
+                count = 2
+            )
+        }
+        val coralClusters = remember(modelLoader) {
+            modelLoader.createInstancedModel(
+                assetFileLocation = "models/atlas_coral.glb",
+                count = 8
+            )
+        }
+        val shipwreck = remember(modelLoader) {
+            modelLoader.createModelInstance("models/atlas_shipwreck.glb")
+        }
+        val seabedCache = remember(modelLoader) {
+            modelLoader.createModelInstance("models/atlas_ocean_chest.glb")
+        }
 
         val abyssFloor = remember(materialLoader) {
             materialLoader.createColorInstance(
@@ -121,6 +154,21 @@ fun AtlasFilamentCityScene(modifier: Modifier = Modifier) {
         val luminousTrim = remember(materialLoader) {
             materialLoader.createColorInstance(
                 Color(0xFF25C6CF), metallic = 0.62f, roughness = 0.18f
+            )
+        }
+        val waterGlass = remember(materialLoader) {
+            materialLoader.createColorInstance(
+                Color(0x294DB8D0), metallic = 0.08f, roughness = 0.035f, reflectance = 0.92f
+            )
+        }
+        val blueCaustic = remember(materialLoader) {
+            materialLoader.createColorInstance(
+                Color(0x684AD7ED), metallic = 0.14f, roughness = 0.14f, reflectance = 0.85f
+            )
+        }
+        val bubbleMaterial = remember(materialLoader) {
+            materialLoader.createColorInstance(
+                Color(0x7899F4FF), metallic = 0.18f, roughness = 0.03f, reflectance = 0.92f
             )
         }
 
@@ -248,6 +296,102 @@ fun AtlasFilamentCityScene(modifier: Modifier = Modifier) {
                 falloff(18f)
             }
         )
+        // A transparent water envelope adds depth around the city.
+        SphereNode(
+            radius = 19.5f,
+            position = Position(x = 0f, y = 1.7f, z = 0f),
+            scale = Scale(x = 1f, y = 0.78f, z = 1f),
+            materialInstance = waterGlass,
+            stacks = 28,
+            slices = 40
+        )
+
+        // Imported shipwreck and seabed relics.
+        shipwreck?.let { wreck ->
+            ModelNode(
+                modelInstance = wreck,
+                scaleToUnits = 7.5f,
+                position = Position(x = -12.0f, y = 0.12f, z = 7.8f),
+                rotation = Rotation(x = -5f, y = 38f, z = 8f)
+            )
+        }
+        seabedCache?.let { chest ->
+            ModelNode(
+                modelInstance = chest,
+                scaleToUnits = 1.2f,
+                position = Position(x = 8.8f, y = 0.08f, z = -3.2f),
+                rotation = Rotation(y = -28f)
+            )
+        }
+
+        // Eight imported coral clusters at different elevations and scales.
+        val coralSites = listOf(
+            floatArrayOf(-12.8f, 0.2f, -6.5f, 2.2f),
+            floatArrayOf(-10.8f, 0.15f, 10.0f, 1.8f),
+            floatArrayOf(-6.2f, 0.15f, -12.1f, 1.6f),
+            floatArrayOf(5.9f, 0.18f, -12.0f, 2.0f),
+            floatArrayOf(12.2f, 0.12f, 8.2f, 1.9f),
+            floatArrayOf(11.6f, 0.12f, -8.7f, 1.7f),
+            floatArrayOf(-13.1f, 0.12f, 2.2f, 1.5f),
+            floatArrayOf(2.0f, 0.12f, 13.0f, 1.8f)
+        )
+        coralClusters.forEachIndexed { index, coral ->
+            val site = coralSites[index]
+            ModelNode(
+                modelInstance = coral,
+                scaleToUnits = site[3],
+                position = Position(x = site[0], y = site[1], z = site[2]),
+                rotation = Rotation(y = index * 43f, x = (index % 3 - 1) * 4f)
+            )
+        }
+
+        // Two large marine animals follow separate arcs around the city.
+        whales.forEachIndexed { index, whale ->
+            val angle = if (index == 0) whaleA else whaleB
+            val radians = angle * (PI.toFloat() / 180f)
+            val radius = if (index == 0) 15.0f else 16.7f
+            val x = cos(radians) * radius
+            val z = sin(radians) * radius
+            val depth = 3.5f + sin(radians * 1.7f + index) * 0.75f
+            ModelNode(
+                modelInstance = whale,
+                autoAnimate = true,
+                scaleToUnits = if (index == 0) 5.5f else 4.2f,
+                position = Position(x = x, y = depth, z = z),
+                rotation = Rotation(y = -angle + 90f, z = sin(radians * 2f) * 3f)
+            )
+        }
+
+        // Soft underwater light columns and a vertical caustic field.
+        for (index in 0 until 5) {
+            val angle = index * (PI.toFloat() * 2f / 5f)
+            val x = cos(angle) * 7.7f
+            val z = sin(angle) * 7.7f
+            CylinderNode(
+                radius = 0.16f, height = 10.5f,
+                position = Position(x = x, y = 5.3f, z = z),
+                materialInstance = blueCaustic,
+                sideCount = 20
+            )
+        }
+
+        // Slow bubbles rise continuously through the water column.
+        for (index in 0 until 18) {
+            val angle = index * 2.39996f
+            val x = cos(angle) * (6.2f + (index % 4) * 1.15f)
+            val z = sin(angle) * (6.2f + (index % 4) * 1.15f)
+            val phase = bubbleMotion + index * 0.71f
+            val height = 0.5f + ((phase + index * 0.37f) % 6.0f)
+            val radius = 0.045f + (index % 3) * 0.022f
+            SphereNode(
+                radius = radius,
+                position = Position(x = x, y = height, z = z),
+                materialInstance = bubbleMaterial,
+                stacks = 7,
+                slices = 10
+            )
+        }
+
         LightNode(
             type = LightManager.Type.POINT,
             intensity = 850f,

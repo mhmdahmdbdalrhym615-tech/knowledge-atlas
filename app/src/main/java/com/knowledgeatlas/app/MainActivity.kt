@@ -629,15 +629,18 @@ private fun WebSearchResultCard(
                 Text(hit.snippet, color = Color(0xFFD0D9E6), fontSize = 13.sp, lineHeight = 20.sp)
             }
             Text(
-                hit.publisher.ifBlank { "الجهة الناشرة غير محددة" },
+                "${hit.publisher.ifBlank { "الجهة الناشرة غير محددة" }} • ${hit.publisherType}",
                 color = AtlasTeal,
                 fontSize = 11.sp
             )
-            hit.verifiedAt?.let {
-                Text("تاريخ التحقق المرسل من الخادم: $it", color = Color.LightGray, fontSize = 10.sp)
+            if (hit.trustNote.isNotBlank()) {
+                Text(hit.trustNote, color = Color.LightGray, fontSize = 10.sp, lineHeight = 15.sp)
+            }
+            hit.retrievedAt?.let {
+                Text("وقت جلب النتيجة: $it", color = Color.LightGray, fontSize = 10.sp)
             }
             Text(
-                "صلة النتيجة بالسؤال: ${(hit.relevance * 100).toInt()}%",
+                "درجة ترتيب النتيجة: ${(hit.relevance * 100).toInt()}%",
                 color = AtlasGold,
                 fontSize = 11.sp
             )

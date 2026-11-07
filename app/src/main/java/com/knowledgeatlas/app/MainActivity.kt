@@ -93,6 +93,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import com.knowledgeatlas.app.data.model.KnowledgeSource
 import com.knowledgeatlas.app.search.AtlasLocalSearch
 import com.knowledgeatlas.app.search.AtlasSearchGateway
@@ -319,14 +322,24 @@ private fun DiscoverScreen(
         item {
             AtlasTopHeader(accent = accent, isSaved = tab == AtlasTab.SAVED)
         }
-        item {
-            AtlasHero(
-                count = sources.size,
-                savedCount = savedCount,
-                accent = accent,
-                title = if (tab == AtlasTab.SAVED) "مساحتك المعرفية" else "افتح أبواب المعرفة",
-                subtitle = if (tab == AtlasTab.SAVED) "مصادرك التي اخترت الاحتفاظ بها." else "اكتشف، قارن، تعلّم، واحتفظ بما يستحق الرجوع إليه."
-            )
+        if (tab == AtlasTab.DISCOVER) {
+            item {
+                AtlasOceanCityPortal(
+                    accent = accent,
+                    sourceCount = sources.size,
+                    onBuildingSelected = { id -> onCategory(if (id == 0) null else id) }
+                )
+            }
+        } else {
+            item {
+                AtlasHero(
+                    count = sources.size,
+                    savedCount = savedCount,
+                    accent = accent,
+                    title = "مساحتك المعرفية",
+                    subtitle = "مصادرك التي اخترت الاحتفاظ بها."
+                )
+            }
         }
         if (tab == AtlasTab.DISCOVER) {
             item {
@@ -999,4 +1012,101 @@ private fun confidenceLabel(value: String): String = when (value.uppercase()) {
     "GOVERNMENT" -> "حكومي"
     "COMMUNITY" -> "مجتمعي"
     else -> "غير مصنف"
+}
+
+
+@Composable
+private fun AtlasOceanCityPortal(
+    accent: Color,
+    sourceCount: Int,
+    onBuildingSelected: (Int) -> Unit
+) {
+    val context = LocalContext.current
+    var cityView by remember { mutableStateOf<AtlasOceanCityView?>(null) }
+    var selectedDistrict by remember { mutableStateOf<Int?>(null) }
+    val owner = context as? LifecycleOwner
+
+    DisposableEffect(cityView, owner) {
+        val view = cityView
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> view?.onResume()
+                Lifecycle.Event.ON_PAUSE -> view?.onPause()
+                else -> Unit
+            }
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose {
+            owner?.lifecycle?.removeObserver(observer)
+            view?.onPause()
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("مدينة أطلس الغارقة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+                Text("عالم ثلاثي الأبعاد حيّ • المس المباني لاستكشافها", color = AtlasTeal, fontSize = 10.sp)
+            }
+            Surface(shape = CircleShape, color = Color(0xFF123A45)) {
+                Text("LIVE  3D", color = AtlasTeal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
+            }
+        }
+        Box(
+            Modifier.fillMaxWidth().height(340.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .border(1.dp, accent.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                .background(Color(0xFF031725))
+        ) {
+            AndroidView(
+                factory = { ctx ->
+                    AtlasOceanCityView(ctx) { id ->
+                        selectedDistrict = id
+                        onBuildingSelected(id)
+                    }.also { cityView = it }
+                },
+                modifier = Modifier.fillMaxSize(),
+                update = { if (cityView !== it) cityView = it }
+            )
+            Column(
+                Modifier.align(Alignment.TopStart).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Text("ABYSSAL METROPOLIS", color = Color(0xFF9AF7EA), fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
+                Text("عمق المدينة  •  3,800 m", color = Color(0xFFB5D7E4), fontSize = 9.sp)
+            }
+            Surface(
+                Modifier.align(Alignment.BottomCenter).padding(10.dp),
+                shape = RoundedCornerShape(15.dp),
+                color = Color(0xD90A2030),
+                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.32f))
+            ) {
+                Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        selectedDistrict?.let { id ->
+                            if (id == 0) "مركز القيادة — قلب أطلس" else AtlasCategories.firstOrNull { it.id == id }?.title ?: "منطقة أطلس"
+                        } ?: "اسحب لتدور • قرّب بإصبعين • المس مبنى",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 10.sp
+                    )
+                    Text("$sourceCount مصدر معرفي متصل بالمدينة", color = accent, fontSize = 8.sp)
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            listOf("↻ تدوير" to "المدينة", "＋ تقريب" to "بإصبعين", "⌖" to "اختر مبنى").forEach { pair ->
+                Surface(
+                    Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF14283A)
+                ) {
+                    Column(Modifier.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(pair.first, color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Text(pair.second, color = AtlasMuted, fontSize = 8.sp)
+                    }
+                }
+            }
+        }
+    }
 }

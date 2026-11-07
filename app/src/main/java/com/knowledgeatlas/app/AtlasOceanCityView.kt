@@ -137,11 +137,13 @@ private data class CityCitizen(
     val id: Int,
     var angle: Float,
     var targetAngle: Float,
-    val radius: Float,
+    var radius: Float,
+    var targetRadius: Float,
     var direction: Float,
     val speed: Float,
     var pauseRemaining: Float,
     var gaitPhase: Float,
+    var idleAction: Int,
     val outfit: FloatArray,
     val skin: FloatArray,
     val accent: FloatArray,
@@ -192,19 +194,22 @@ private class OceanCityRenderer(
     private val citizens = List(9) { index ->
         val angle = (index.toFloat() / 9f) * (2f * PI.toFloat())
         val direction = if (index % 2 == 0) 1f else -1f
+        val initialRadius = when (index % 3) {
+            0 -> 3.35f
+            1 -> 4.25f
+            else -> 5.0f
+        }
         CityCitizen(
             id = index,
             angle = angle,
             targetAngle = angle + direction * (0.55f + citizenRandom.nextFloat() * 0.85f),
-            radius = when (index % 3) {
-                0 -> 3.35f
-                1 -> 4.25f
-                else -> 5.0f
-            },
+            radius = initialRadius,
+            targetRadius = initialRadius,
             direction = direction,
             speed = 0.48f + citizenRandom.nextFloat() * 0.24f,
             pauseRemaining = citizenRandom.nextFloat() * 1.15f,
             gaitPhase = citizenRandom.nextFloat() * 6.28f,
+            idleAction = citizenRandom.nextInt(4),
             outfit = arrayOf(
                 floatArrayOf(0.08f, 0.55f, 0.62f, 1f),
                 floatArrayOf(0.20f, 0.34f, 0.72f, 1f),
@@ -494,24 +499,38 @@ private class OceanCityRenderer(
     }
 
     private fun updateCitizens(deltaSeconds: Float) {
+        // Residents use three connected promenade lanes. They can change lanes,
+        // choose a fresh destination, pause, and resume without any user input.
+        val promenadeRadii = floatArrayOf(3.35f, 4.25f, 5.0f)
         for (citizen in citizens) {
             if (citizen.pauseRemaining > 0f) {
-                citizen.pauseRemaining -= deltaSeconds
-                if (citizen.pauseRemaining <= 0f) {
+                citizen.pauseRemaining = (citizen.pauseRemaining - deltaSeconds).coerceAtLeast(0f)
+                if (citizen.pauseRemaining == 0f) {
+                    if (citizenRandom.nextFloat() < 0.42f) {
+                        citizen.targetRadius = promenadeRadii[citizenRandom.nextInt(promenadeRadii.size)]
+                    } else {
+                        citizen.targetRadius = citizen.radius
+                    }
+                    if (citizenRandom.nextFloat() < 0.18f) citizen.direction *= -1f
                     citizen.targetAngle = citizen.angle + citizen.direction *
-                        (0.55f + citizenRandom.nextFloat() * 1.25f)
+                        (0.75f + citizenRandom.nextFloat() * 1.65f)
                 }
             } else {
-                val remaining = citizen.targetAngle - citizen.angle
-                val step = (citizen.speed / citizen.radius) * deltaSeconds
-                if (kotlin.math.abs(remaining) <= step) {
+                val remainingAngle = citizen.targetAngle - citizen.angle
+                val angleStep = (citizen.speed / max(citizen.radius, 1f)) * deltaSeconds
+                val radiusStep = (0.34f + citizen.speed * 0.22f) * deltaSeconds
+
+                citizen.angle += remainingAngle.coerceIn(-angleStep, angleStep)
+                citizen.radius += (citizen.targetRadius - citizen.radius)
+                    .coerceIn(-radiusStep, radiusStep)
+
+                val reachedAngle = abs(remainingAngle) <= angleStep
+                val reachedLane = abs(citizen.targetRadius - citizen.radius) <= 0.001f
+                if (reachedAngle && reachedLane) {
                     citizen.angle = citizen.targetAngle
-                    citizen.pauseRemaining = 0.55f + citizenRandom.nextFloat() * 1.65f
-                    if (citizenRandom.nextFloat() < 0.20f) citizen.direction *= -1f
-                    citizen.targetAngle = citizen.angle + citizen.direction *
-                        (0.55f + citizenRandom.nextFloat() * 1.25f)
-                } else {
-                    citizen.angle += if (remaining > 0f) step else -step
+                    citizen.radius = citizen.targetRadius
+                    citizen.pauseRemaining = 0.65f + citizenRandom.nextFloat() * 2.1f
+                    citizen.idleAction = citizenRandom.nextInt(4)
                 }
             }
             citizen.gaitPhase += deltaSeconds * (6.0f + citizen.speed * 2.5f)
@@ -526,13 +545,28 @@ private class OceanCityRenderer(
             val phase = citizen.gaitPhase
             val bob = if (walking) abs(sin(phase * 2f)) * 0.025f
                 else sin(frameTime * 1.1f + citizen.id) * 0.008f
-            val armSwing = if (walking) sin(phase) * 25f
-                else sin(frameTime * 1.25f + citizen.id) * 4f
+            val armSwing = sin(phase) * 25f
+            val idleWave = sin(frameTime * 4.2f + citizen.id * 0.8f) * 30f + 18f
+            val idleMotion = sin(frameTime * 1.4f + citizen.id) * 7f
+            val leftArmSwing = when {
+                walking -> armSwing
+                citizen.idleAction == 1 && citizen.id % 2 == 0 -> idleWave
+                citizen.idleAction == 2 -> idleMotion + 12f
+                else -> idleMotion
+            }
+            val rightArmSwing = when {
+                walking -> -armSwing
+                citizen.idleAction == 1 && citizen.id % 2 != 0 -> -idleWave
+                citizen.idleAction == 2 -> idleMotion - 12f
+                else -> idleMotion
+            }
             val legSwing = if (walking) sin(phase) * 27f else 0f
             val kneeBend = if (walking) max(0f, sin(phase + 0.8f)) * 18f else 0f
             val facing = (-citizen.angle + if (citizen.direction < 0f) PI.toFloat() else 0f) *
                 (180f / PI.toFloat())
-            val look = if (walking) 0f else sin(frameTime * 0.7f + citizen.id * 1.7f) * 9f
+            val look = if (walking) 0f else
+                sin(frameTime * (if (citizen.idleAction == 0) 0.72f else 0.42f) + citizen.id * 1.7f) *
+                    if (citizen.idleAction == 0) 13f else 6f
             val base = 0.15f
             val citizenDistance = kotlin.math.sqrt(
                 (x - eye[0]) * (x - eye[0]) + (z - eye[2]) * (z - eye[2]) +
@@ -551,9 +585,9 @@ private class OceanCityRenderer(
                 drawCitizenPart(personCylinder, x, z, facing, 0.07f, base + 0.15f, 0f,
                     0.055f, 0.20f, 0.055f, citizen.trousers, citizen.accent, 0f, legSwing * 0.7f)
                 drawCitizenPart(personCylinder, x, z, facing, -0.20f, base + 0.46f, 0f,
-                    0.045f, 0.30f, 0.045f, citizen.outfit, citizen.accent, 0f, armSwing * 0.7f)
+                    0.045f, 0.30f, 0.045f, citizen.outfit, citizen.accent, 0f, leftArmSwing * 0.7f)
                 drawCitizenPart(personCylinder, x, z, facing, 0.20f, base + 0.46f, 0f,
-                    0.045f, 0.30f, 0.045f, citizen.outfit, citizen.accent, 0f, -armSwing * 0.7f)
+                    0.045f, 0.30f, 0.045f, citizen.outfit, citizen.accent, 0f, rightArmSwing * 0.7f)
                 continue
             }
 
@@ -589,20 +623,20 @@ private class OceanCityRenderer(
 
             // Two-piece moving arms with elbows and hands.
             drawCitizenPart(personCylinder, x, z, facing, -0.205f, base + 0.485f + bob, 0f,
-                0.052f, 0.18f, 0.052f, citizen.outfit, citizen.accent, 0f, armSwing * 0.58f)
+                0.052f, 0.18f, 0.052f, citizen.outfit, citizen.accent, 0f, leftArmSwing * 0.58f)
             drawCitizenPart(personSphere, x, z, facing, -0.205f, base + 0.385f + bob, 0f,
                 0.052f, 0.052f, 0.052f, citizen.outfit, citizen.accent)
             drawCitizenPart(personCylinder, x, z, facing, -0.205f, base + 0.275f + bob, 0f,
-                0.043f, 0.15f, 0.043f, citizen.skin, citizen.accent, 0f, armSwing * 0.82f)
+                0.043f, 0.15f, 0.043f, citizen.skin, citizen.accent, 0f, leftArmSwing * 0.82f)
             drawCitizenPart(personSphere, x, z, facing, -0.205f, base + 0.185f + bob, 0.012f,
                 0.043f, 0.05f, 0.04f, citizen.skin, citizen.skin)
 
             drawCitizenPart(personCylinder, x, z, facing, 0.205f, base + 0.485f + bob, 0f,
-                0.052f, 0.18f, 0.052f, citizen.outfit, citizen.accent, 0f, -armSwing * 0.58f)
+                0.052f, 0.18f, 0.052f, citizen.outfit, citizen.accent, 0f, rightArmSwing * 0.58f)
             drawCitizenPart(personSphere, x, z, facing, 0.205f, base + 0.385f + bob, 0f,
                 0.052f, 0.052f, 0.052f, citizen.outfit, citizen.accent)
             drawCitizenPart(personCylinder, x, z, facing, 0.205f, base + 0.275f + bob, 0f,
-                0.043f, 0.15f, 0.043f, citizen.skin, citizen.accent, 0f, -armSwing * 0.82f)
+                0.043f, 0.15f, 0.043f, citizen.skin, citizen.accent, 0f, rightArmSwing * 0.82f)
             drawCitizenPart(personSphere, x, z, facing, 0.205f, base + 0.185f + bob, 0.012f,
                 0.043f, 0.05f, 0.04f, citizen.skin, citizen.skin)
 

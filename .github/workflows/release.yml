@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version_name:
-        description: "Release version, for example 1.0.1"
+        description: "Release version, for example 1.0.0"
         required: true
         type: string
       version_code:
@@ -56,6 +56,7 @@ jobs:
           fi
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/atlas-release.jks"
           chmod 600 "$RUNNER_TEMP/atlas-release.jks"
+          test -s "$RUNNER_TEMP/atlas-release.jks"
       - name: Build signed release APK and run tests
         env:
           ATLAS_RELEASE_STORE_FILE: ${{ runner.temp }}/atlas-release.jks
@@ -79,7 +80,7 @@ jobs:
             -PATLAS_SEARCH_API_BASE_URL="${ATLAS_SEARCH_API_BASE_URL:-}" \
             -PATLAS_UPDATE_MANIFEST_URL="${ATLAS_UPDATE_MANIFEST_URL:-}" \
             assembleDirectRelease testDirectReleaseUnitTest
-      - name: Verify signature and create update manifest
+      - name: Verify signature and create release metadata
         env:
           VERSION_NAME: ${{ inputs.version_name }}
           VERSION_CODE: ${{ inputs.version_code }}
@@ -88,6 +89,7 @@ jobs:
         run: |
           APK_PATH="$(find app/build/outputs/apk/direct/release -maxdepth 1 -name '*.apk' | head -n 1)"
           test -n "$APK_PATH"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK_PATH" | grep -F "name='com.knowledgeatlas.app'"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK_PATH"
           export APK_PATH
           python - <<'PY'
@@ -95,26 +97,32 @@ jobs:
           apk_path = os.environ["APK_PATH"]
           with open(apk_path, "rb") as f:
               digest = hashlib.sha256(f.read()).hexdigest()
-          manifest = {
-              "versionCode": int(os.environ["VERSION_CODE"]),
-              "versionName": os.environ["VERSION_NAME"],
-              "apkUrl": os.environ.get("PUBLIC_APK_URL", "").strip(),
-              "sha256": digest,
-              "releaseNotes": os.environ.get("RELEASE_NOTES", "")[:1000],
-          }
-          if not manifest["apkUrl"].startswith("https://"):
-              raise SystemExit("ATLAS_PUBLIC_APK_URL must be a public HTTPS URL before publishing the updater manifest.")
-          with open("stable-update-manifest.json", "w", encoding="utf-8") as f:
-              json.dump(manifest, f, ensure_ascii=False, indent=2)
-              f.write("\n")
+          with open("release-sha256.txt", "w", encoding="utf-8") as f:
+              f.write(f"{digest}  {os.path.basename(apk_path)}\\n")
+          public_url = os.environ.get("PUBLIC_APK_URL", "").strip()
+          if public_url:
+              if not public_url.startswith("https://"):
+                  raise SystemExit("ATLAS_PUBLIC_APK_URL must use HTTPS.")
+              manifest = {
+                  "versionCode": int(os.environ["VERSION_CODE"]),
+                  "versionName": os.environ["VERSION_NAME"],
+                  "apkUrl": public_url,
+                  "sha256": digest,
+                  "releaseNotes": os.environ.get("RELEASE_NOTES", "")[:1000],
+              }
+              with open("stable-update-manifest.json", "w", encoding="utf-8") as f:
+                  json.dump(manifest, f, ensure_ascii=False, indent=2)
+                  f.write("\\n")
+              print("Update manifest created. Publish it at ATLAS_UPDATE_MANIFEST_URL.")
+          else:
+              print("::notice::APK is signed and verified. Update manifest omitted because ATLAS_PUBLIC_APK_URL is not configured.")
           PY
-          sha256sum "$APK_PATH" > release-sha256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: knowledge-atlas-direct-release
           path: |
             app/build/outputs/apk/direct/release/*.apk
-            stable-update-manifest.json
             release-sha256.txt
+            stable-update-manifest.json
           if-no-files-found: error
           retention-days: 30

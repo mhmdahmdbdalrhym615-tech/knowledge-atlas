@@ -157,7 +157,7 @@ Set-ExecutionPolicy -Scope Process Bypass
 - `ATLAS_UPDATE_MANIFEST_URL`: عنوان HTTPS لبيان التحديث.
 - `ATLAS_PUBLIC_APK_URL`: رابط HTTPS عام مباشر لملف APK.
 
-بعد حفظ الأسرار، شغّل `Actions → Signed Android Release → Run workflow` وحدد اسم الإصدار ورقم `versionCode` أكبر من آخر إصدار. يتحقق المسار من توقيع الحزمة وينتج APK وبيان تحديث وبصمة SHA-256 كـ artifact. يتوقف المسار إذا لم يكن رابط APK العام مضبوطاً.
+بعد حفظ الأسرار، شغّل `Actions → Signed Android Release → Run workflow` وحدد اسم الإصدار ورقم `versionCode` أكبر من آخر إصدار. يتحقق المسار من هوية الحزمة وتوقيع APK وينتج APK وبصمة SHA-256 كـ artifact. إذا ضُبط المتغير `ATLAS_PUBLIC_APK_URL` كرابط HTTPS مباشر، يُنتج أيضاً بيان التحديث `stable-update-manifest.json`؛ وإذا لم يُضبط، يظل APK الموقّع متاحاً للتنزيل لكن التحديث الذاتي لن يعمل حتى استضافة APK والبيان على روابط HTTPS عامة مباشرة لا تعتمد على تسجيل دخول أو إعادة توجيه.
 
 **ما زال النشر الحي واختبار التحديث بحاجة إلى استضافة عامة عبر HTTPS لخدمة البحث وملف البيان وAPK، ثم اختبار التثبيت والترقية على هاتف Android حقيقي. لا يوجد حالياً مفتاح توقيع أو عنوان استضافة مضبوط في المشروع.**
 

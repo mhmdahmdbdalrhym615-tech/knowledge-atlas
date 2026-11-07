@@ -58,22 +58,22 @@ abstract class AppDatabase : RoomDatabase() {
                             "FREE", false, "https://ffmpeg.org", "2026-11-06", "Official Docs", "OFFICIAL"
                         ),
                         KnowledgeSource(
-                            "src_zlib", "زد لايبراري", "Z-Library",
-                            "أكبر منصة ومستودع رقمي للكتب والمراجع الجامعية والمقالات العلمية في التاريخ البشري.",
-                            "One of the world's largest online libraries for e-books and articles.",
-                            2, "كتب,مكتبة,أبحاث,مراجع,روايات,تحميل,books,library",
-                            "وصول مجاني ملايين الكتب الإلكترونية والأوراق البحثية بكافة الصيغ ولغات العالم.",
-                            "أنشئ حساباً مجانياً على المنصة، وابحث باسم الكتاب أو الرقم الدولي (ISBN) لتحميله مباشرة.",
-                            "MIXED", true, "https://z-lib.gs", "2026-11-06", "Platform Verification", "COMMUNITY"
+                            "src_openalex", "أوبن أليكس", "OpenAlex",
+                            "فهرس مفتوح للنتاج العلمي والمؤلفين والجهات البحثية والمجلات، يفيد في اكتشاف الأبحاث وبياناتها الوصفية.",
+                            "An open catalog of scholarly works, authors, institutions, and sources.",
+                            2, "أبحاث,باحثون,جامعات,مجلات,بيانات علمية,openalex,research,scholarly",
+                            "اكتشاف الأوراق العلمية والمؤلفين والمؤسسات البحثية وربط الأعمال العلمية ببياناتها.",
+                            "ابحث بعنوان الدراسة أو اسم الباحث أو المؤسسة، ثم انتقل إلى سجل العمل ومصدره الأصلي.",
+                            "FREE", false, "https://openalex.org", "2026-11-07", "Official OpenAlex website", "ACADEMIC"
                         ),
                         KnowledgeSource(
-                            "src_tinywow", "تايني واو", "TinyWow",
-                            "المنصة الشاملة الأكبر لمعالجة ملفات الـ PDF، دمج وتحويل الفيديوهات والصور وحفظ جودتها مجاناً.",
-                            "Free PDF, Video, Image and AI Tools to solve your digital problems.",
-                            12, "دمج,تحويل,فيديو,صور,بي دي اف,جودة,pdf,video,tools",
-                            "أدوات متكاملة لدمج الفيديوهات أونلاين، تحويل صيغ الصور، وتعديل ملفات الـ PDF دون قيود.",
-                            "اختر الأداة المطلوبة من الصفحة الرئيسية (مثال: Merge Video)، ارفع ملفاتك، ثم حمل الناتج بجودته الأصلية.",
-                            "FREE", false, "https://tinywow.com", "2026-11-06", "Direct Verification", "COMMUNITY"
+                            "src_doaj", "دليل الدوريات مفتوحة الوصول", "DOAJ",
+                            "دليل مستقل للدوريات العلمية مفتوحة الوصول، يساعد في اكتشاف المجلات والمقالات وفق بياناتها المنشورة.",
+                            "A curated directory of peer-reviewed open access journals.",
+                            2, "دوريات,مجلات,أبحاث,وصول مفتوح,تحكيم,doaj,journals,open access",
+                            "البحث عن الدوريات العلمية ومقالات الوصول المفتوح والتحقق من بيانات المجلة وسياسات النشر.",
+                            "ابحث بموضوع الدراسة أو اسم المجلة، ثم راجع صفحة المجلة ومعلومات النشر والتحكيم قبل الاعتماد عليها.",
+                            "FREE", false, "https://doaj.org", "2026-11-07", "Official DOAJ website", "ACADEMIC"
                         )
                     )
                     dao.insertSources(catalog)

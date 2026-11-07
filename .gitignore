@@ -1,0 +1,18 @@
+# Gradle / Android
+.gradle/
+**/build/
+local.properties
+*.iml
+.idea/
+.DS_Store
+
+# Signing material and secrets
+*.jks
+*.keystore
+keystore.properties
+.env
+.env.*
+secrets.properties
+
+# Local AI/search configuration
+atlas.local.properties

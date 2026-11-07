@@ -1,4 +1,5 @@
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from app import main
@@ -20,6 +21,7 @@ def test_search_rejects_queries_shorter_than_two_characters():
 
 def test_search_returns_service_unavailable_when_provider_missing(monkeypatch):
     monkeypatch.setattr(main, "SEARXNG_BASE_URL", "")
+    main._request_timestamps.clear()
     with TestClient(main.app) as client:
         response = client.post("/search", json={"query": "soil salinity"})
     assert response.status_code == 503
@@ -28,6 +30,8 @@ def test_search_returns_service_unavailable_when_provider_missing(monkeypatch):
 
 def test_search_filters_unsafe_urls_and_deduplicates_results(monkeypatch):
     monkeypatch.setattr(main, "SEARXNG_BASE_URL", "https://searxng.example.test")
+    monkeypatch.setattr(main, "SEARCH_RATE_LIMIT_PER_MINUTE", 20)
+    main._request_timestamps.clear()
     real_async_client = httpx.AsyncClient
 
     def handler(request):
@@ -52,3 +56,15 @@ def test_search_filters_unsafe_urls_and_deduplicates_results(monkeypatch):
     assert payload["results"][0]["url"] == "https://www.fao.org/soils"
     assert payload["results"][0]["publisherType"] == "منظمة دولية"
     assert payload["results"][0]["retrievedAt"]
+
+
+def test_search_rate_limit_returns_429_and_retry_after(monkeypatch):
+    monkeypatch.setattr(main, "SEARXNG_BASE_URL", "")
+    monkeypatch.setattr(main, "SEARCH_RATE_LIMIT_PER_MINUTE", 1)
+    main._request_timestamps.clear()
+    with TestClient(main.app) as client:
+        first = client.post("/search", json={"query": "soil salinity"})
+        second = client.post("/search", json={"query": "soil salinity"})
+    assert first.status_code == 503
+    assert second.status_code == 429
+    assert int(second.headers["Retry-After"]) > 0

@@ -6,17 +6,38 @@ plugins {
 
 val searchApiBaseUrl = providers.gradleProperty("ATLAS_SEARCH_API_BASE_URL").orElse("").get()
 val updateManifestUrl = providers.gradleProperty("ATLAS_UPDATE_MANIFEST_URL").orElse("").get()
+val atlasVersionCode = providers.gradleProperty("ATLAS_VERSION_CODE").orElse("1").get().toInt()
+val atlasVersionName = providers.gradleProperty("ATLAS_VERSION_NAME").orElse("1.0.0").get()
+val releaseStoreFilePath = providers.environmentVariable("ATLAS_RELEASE_STORE_FILE").orNull
+val releaseStorePassword = providers.environmentVariable("ATLAS_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("ATLAS_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("ATLAS_RELEASE_KEY_PASSWORD").orNull
+val releaseSigningConfigured = listOf(releaseStoreFilePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword).all { !it.isNullOrBlank() }
+
+require(atlasVersionCode > 0) { "ATLAS_VERSION_CODE must be a positive integer." }
+require(atlasVersionName.isNotBlank() && atlasVersionName.length <= 40) { "ATLAS_VERSION_NAME must contain 1 to 40 characters." }
 
 android {
     namespace = "com.knowledgeatlas.app"
     compileSdk = 36
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = file(requireNotNull(releaseStoreFilePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.knowledgeatlas.app"
         minSdk = 28
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = atlasVersionCode
+        versionName = atlasVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SEARCH_API_BASE_URL", "\"$searchApiBaseUrl\"")
         buildConfigField("String", "UPDATE_MANIFEST_URL", "\"$updateManifestUrl\"")
@@ -40,6 +61,7 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            if (releaseSigningConfigured) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

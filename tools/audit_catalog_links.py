@@ -75,14 +75,25 @@ def probe(row: dict[str, Any], checked_at: str) -> dict[str, Any]:
             status = int(response.status)
             final_url = response.geturl()
             response.read(READ_LIMIT)
+            final_parts = urlsplit(final_url)
+            final_is_safe_https = (
+                final_parts.scheme == "https"
+                and bool(final_parts.hostname)
+                and not final_parts.username
+                and not final_parts.password
+            )
+            reachable = 200 <= status < 400 and final_is_safe_https
             result.update(
                 finalUrl=final_url,
                 httpStatus=status,
-                responseHost=urlsplit(final_url).hostname or "",
-                reachable=200 <= status < 400,
+                responseHost=final_parts.hostname or "",
+                reachable=reachable,
             )
-            if 200 <= status < 400:
+            if reachable:
                 result["auditStatus"] = "REACHABLE_UNVERIFIED"
+            elif 200 <= status < 400 and not final_is_safe_https:
+                result["auditStatus"] = "UNSAFE_REDIRECT_UNVERIFIED"
+                result["note"] = "The endpoint redirected away from a credential-free HTTPS URL; manual review required."
             else:
                 result["auditStatus"] = "HTTP_ERROR_UNVERIFIED"
     except HTTPError as exc:

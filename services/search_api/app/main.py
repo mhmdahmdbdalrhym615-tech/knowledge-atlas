@@ -130,7 +130,14 @@ async def search(
         async with httpx.AsyncClient(
             timeout=SEARCH_TIMEOUT_SECONDS,
             follow_redirects=False,
-            headers={"User-Agent": "KnowledgeAtlas-Search/0.2"},
+            headers={
+                "User-Agent": "KnowledgeAtlas-Search/0.2",
+                # SearXNG bot detection requires a client-IP header. The API
+                # is the only public entry point; use the socket peer supplied
+                # by the platform proxy rather than trusting client-supplied
+                # forwarding headers.
+                "X-Real-IP": client_key,
+            },
         ) as client:
             response = await client.get(
                 f"{SEARXNG_BASE_URL}/search", params=params

@@ -1,6 +1,7 @@
 package com.knowledgeatlas.app.search
 
 import com.knowledgeatlas.app.BuildConfig
+import com.knowledgeatlas.app.security.AtlasUrlPolicy
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
@@ -24,7 +25,7 @@ class AtlasSearchGateway {
     suspend fun search(query: String, limit: Int = 20): WebSearchResult = withContext(Dispatchers.IO) {
         val baseUrl = BuildConfig.SEARCH_API_BASE_URL.trim().trimEnd('/')
         if (baseUrl.isBlank()) return@withContext WebSearchResult.NotConfigured
-        if (!isHttpsUrl(baseUrl)) return@withContext WebSearchResult.Failure("يجب أن يستخدم خادم البحث عنوان HTTPS صالحاً.")
+        if (!AtlasUrlPolicy.isHttpsUrl(baseUrl)) return@withContext WebSearchResult.Failure("يجب أن يستخدم خادم البحث عنوان HTTPS صالحاً.")
         val cleanQuery = query.trim()
         if (cleanQuery.isBlank()) return@withContext WebSearchResult.Success(emptyList())
         if (cleanQuery.length > MAX_QUERY_LENGTH) return@withContext WebSearchResult.Failure("السؤال أطول من الحد المسموح.")
@@ -54,7 +55,7 @@ class AtlasSearchGateway {
                 for (i in 0 until minOf(array.length(), MAX_RESULTS)) {
                     val item = array.optJSONObject(i) ?: continue
                     val url = item.optString("url")
-                    if (!isHttpsUrl(url)) continue
+                    if (!AtlasUrlPolicy.isHttpsUrl(url)) continue
                     val title = item.optString("title").trim().take(240)
                     if (title.isBlank()) continue
                     add(WebSearchHit(title, url, item.optString("snippet").take(1200),
@@ -70,10 +71,6 @@ class AtlasSearchGateway {
         } finally { connection?.disconnect() }
     }
 
-    private fun isHttpsUrl(value: String): Boolean = runCatching {
-        val parsed = URL(value)
-        parsed.protocol.equals("https", true) && !parsed.host.isNullOrBlank() && parsed.userInfo == null
-    }.getOrDefault(false)
 
     private fun readBounded(connection: HttpURLConnection, maxBytes: Int): String {
         require(connection.contentLengthLong <= maxBytes) { "Search response exceeds size limit." }

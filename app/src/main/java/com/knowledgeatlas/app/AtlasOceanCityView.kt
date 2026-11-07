@@ -132,6 +132,20 @@ private data class CityNode(
 
 private data class GlMesh(val buffer: FloatBuffer, val vertexCount: Int)
 
+private data class CityCitizen(
+    val id: Int,
+    var angle: Float,
+    var targetAngle: Float,
+    val radius: Float,
+    var direction: Float,
+    val speed: Float,
+    var pauseRemaining: Float,
+    var gaitPhase: Float,
+    val outfit: FloatArray,
+    val skin: FloatArray,
+    val accent: FloatArray
+)
+
 private class OceanCityRenderer(
     private val onBuildingSelected: (Int) -> Unit
 ) : GLSurfaceView.Renderer {
@@ -143,6 +157,8 @@ private class OceanCityRenderer(
     private lateinit var sphere: GlMesh
     private lateinit var torus: GlMesh
     private lateinit var floor: GlMesh
+    private lateinit var personSphere: GlMesh
+    private lateinit var personCylinder: GlMesh
     private lateinit var particles: FloatBuffer
 
     private val projection = FloatArray(16)
@@ -156,6 +172,55 @@ private class OceanCityRenderer(
 
     private var screenWidth = 1
     private var screenHeight = 1
+    private var uMvpLocation = -1
+    private var uModelLocation = -1
+    private var uColorLocation = -1
+    private var uGlowLocation = -1
+    private var uEyeLocation = -1
+    private var uTimeLocation = -1
+    private var aPositionLocation = -1
+    private var aNormalLocation = -1
+    private var particleMvpLocation = -1
+    private var particleTimeLocation = -1
+    private var particlePositionLocation = -1
+    private var lastFrameNanos = 0L
+    private val citizenRandom = Random(4219L)
+    private val citizens = List(9) { index ->
+        val angle = (index.toFloat() / 9f) * (2f * PI.toFloat())
+        val direction = if (index % 2 == 0) 1f else -1f
+        CityCitizen(
+            id = index,
+            angle = angle,
+            targetAngle = angle + direction * (0.55f + citizenRandom.nextFloat() * 0.85f),
+            radius = when (index % 3) {
+                0 -> 3.35f
+                1 -> 4.25f
+                else -> 5.0f
+            },
+            direction = direction,
+            speed = 0.48f + citizenRandom.nextFloat() * 0.24f,
+            pauseRemaining = citizenRandom.nextFloat() * 1.15f,
+            gaitPhase = citizenRandom.nextFloat() * 6.28f,
+            outfit = arrayOf(
+                floatArrayOf(0.08f, 0.55f, 0.62f, 1f),
+                floatArrayOf(0.20f, 0.34f, 0.72f, 1f),
+                floatArrayOf(0.52f, 0.25f, 0.62f, 1f),
+                floatArrayOf(0.16f, 0.52f, 0.34f, 1f),
+                floatArrayOf(0.70f, 0.36f, 0.16f, 1f),
+                floatArrayOf(0.24f, 0.48f, 0.58f, 1f)
+            )[index % 6],
+            skin = arrayOf(
+                floatArrayOf(0.78f, 0.55f, 0.39f, 1f),
+                floatArrayOf(0.54f, 0.34f, 0.23f, 1f),
+                floatArrayOf(0.90f, 0.70f, 0.53f, 1f)
+            )[index % 3],
+            accent = arrayOf(
+                floatArrayOf(0.18f, 0.95f, 0.88f, 1f),
+                floatArrayOf(0.38f, 0.68f, 1f, 1f),
+                floatArrayOf(0.95f, 0.66f, 0.30f, 1f)
+            )[index % 3]
+        )
+    }
     @Volatile private var yaw = -0.38f
     @Volatile private var pitch = 0.30f
     @Volatile private var cameraDistance = 20.5f
@@ -186,9 +251,22 @@ private class OceanCityRenderer(
         GLES20.glDisable(GLES20.GL_CULL_FACE)
         program = linkProgram(VERTEX_SHADER, FRAGMENT_SHADER)
         particleProgram = linkProgram(PARTICLE_VERTEX_SHADER, PARTICLE_FRAGMENT_SHADER)
+        uMvpLocation = GLES20.glGetUniformLocation(program, "uMvp")
+        uModelLocation = GLES20.glGetUniformLocation(program, "uModel")
+        uColorLocation = GLES20.glGetUniformLocation(program, "uColor")
+        uGlowLocation = GLES20.glGetUniformLocation(program, "uGlow")
+        uEyeLocation = GLES20.glGetUniformLocation(program, "uEye")
+        uTimeLocation = GLES20.glGetUniformLocation(program, "uTime")
+        aPositionLocation = GLES20.glGetAttribLocation(program, "aPosition")
+        aNormalLocation = GLES20.glGetAttribLocation(program, "aNormal")
+        particleMvpLocation = GLES20.glGetUniformLocation(particleProgram, "uMvp")
+        particleTimeLocation = GLES20.glGetUniformLocation(particleProgram, "uTime")
+        particlePositionLocation = GLES20.glGetAttribLocation(particleProgram, "aPosition")
         cube = createCube()
         cylinder = createCylinder(28)
         sphere = createSphere(18, 24)
+        personSphere = createSphere(8, 12)
+        personCylinder = createCylinder(10)
         torus = createTorus(1.0f, 0.055f, 32, 8)
         floor = createCube()
         particles = createParticles(94)
@@ -204,7 +282,16 @@ private class OceanCityRenderer(
     }
 
     override fun onDrawFrame(gl: GL10?) {
-        frameTime = (System.nanoTime() - startTime) / 1_000_000_000f
+        val now = System.nanoTime()
+        if (lastFrameNanos != 0L && now - lastFrameNanos < 33_000_000L) return
+        val deltaSeconds = if (lastFrameNanos == 0L) {
+            1f / 30f
+        } else {
+            ((now - lastFrameNanos) / 1_000_000_000f).coerceIn(0f, 0.05f)
+        }
+        lastFrameNanos = now
+        frameTime = (now - startTime) / 1_000_000_000f
+        updateCitizens(deltaSeconds)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
 
         val cx = sin(yaw) * cameraDistance
@@ -217,16 +304,15 @@ private class OceanCityRenderer(
         Matrix.multiplyMM(viewProjection, 0, projection, 0, view, 0)
 
         GLES20.glUseProgram(program)
-        val timeLoc = GLES20.glGetUniformLocation(program, "uTime")
-        GLES20.glUniform1f(timeLoc, frameTime)
-        val eyeLoc = GLES20.glGetUniformLocation(program, "uEye")
-        GLES20.glUniform3f(eyeLoc, eye[0], eye[1], eye[2])
+        GLES20.glUniform1f(uTimeLocation, frameTime)
+        GLES20.glUniform3f(uEyeLocation, eye[0], eye[1], eye[2])
 
         drawCityFloor()
         drawCityRings()
         drawCentralCitadel()
         drawDistricts()
         drawMovingStructures()
+        drawCitizens()
         drawParticles()
 
         // Keep the city continuously alive with a slow, subtle camera drift only while idle.
@@ -349,14 +435,95 @@ private class OceanCityRenderer(
             rgb(0.54f, 0.66f, 1f), rgb(0.28f, 0.45f, 1f))
     }
 
+    private fun updateCitizens(deltaSeconds: Float) {
+        for (citizen in citizens) {
+            if (citizen.pauseRemaining > 0f) {
+                citizen.pauseRemaining -= deltaSeconds
+                if (citizen.pauseRemaining <= 0f) {
+                    citizen.targetAngle = citizen.angle + citizen.direction *
+                        (0.55f + citizenRandom.nextFloat() * 1.25f)
+                }
+            } else {
+                val remaining = citizen.targetAngle - citizen.angle
+                val step = (citizen.speed / citizen.radius) * deltaSeconds
+                if (kotlin.math.abs(remaining) <= step) {
+                    citizen.angle = citizen.targetAngle
+                    citizen.pauseRemaining = 0.55f + citizenRandom.nextFloat() * 1.65f
+                    if (citizenRandom.nextFloat() < 0.20f) citizen.direction *= -1f
+                    citizen.targetAngle = citizen.angle + citizen.direction *
+                        (0.55f + citizenRandom.nextFloat() * 1.25f)
+                } else {
+                    citizen.angle += if (remaining > 0f) step else -step
+                }
+            }
+            citizen.gaitPhase += deltaSeconds * (6.0f + citizen.speed * 2.5f)
+        }
+    }
+
+    private fun drawCitizens() {
+        for (citizen in citizens) {
+            val x = cos(citizen.angle) * citizen.radius
+            val z = sin(citizen.angle) * citizen.radius
+            val walking = citizen.pauseRemaining <= 0f
+            val bob = if (walking) kotlin.math.abs(sin(citizen.gaitPhase)) * 0.025f
+                else sin(frameTime * 1.2f + citizen.id) * 0.008f
+            val swing = if (walking) sin(citizen.gaitPhase) * 25f
+                else sin(frameTime * 1.4f + citizen.id) * 3.5f
+            val yaw = (-citizen.angle + if (citizen.direction < 0f) PI.toFloat() else 0f) *
+                (180f / PI.toFloat())
+            val footY = 0.16f
+            val armOffset = sin(swing * (PI.toFloat() / 180f)) * 0.055f
+            val legOffset = sin((-swing * 0.9f) * (PI.toFloat() / 180f)) * 0.065f
+
+            draw(
+                personCylinder, x, footY + 0.405f + bob, z,
+                0.22f, 0.34f, 0.13f, citizen.outfit,
+                citizen.accent, rotationY = yaw
+            )
+            draw(
+                personSphere, x, footY + 0.665f + bob, z,
+                0.105f, 0.125f, 0.105f, citizen.skin,
+                citizen.accent, rotationY = yaw
+            )
+            draw(
+                personCylinder, x - 0.15f, footY + 0.415f + bob,
+                z + armOffset, 0.065f, 0.235f, 0.065f,
+                citizen.outfit, citizen.accent,
+                rotationY = yaw, rotationZ = swing
+            )
+            draw(
+                personCylinder, x + 0.15f, footY + 0.415f + bob,
+                z - armOffset, 0.065f, 0.235f, 0.065f,
+                citizen.outfit, citizen.accent,
+                rotationY = yaw, rotationZ = -swing
+            )
+            draw(
+                personCylinder, x - 0.058f, footY + 0.145f,
+                z - legOffset, 0.073f, 0.265f, 0.073f,
+                rgb(0.045f, 0.12f, 0.18f), citizen.accent,
+                rotationY = yaw, rotationZ = -swing * 0.9f
+            )
+            draw(
+                personCylinder, x + 0.058f, footY + 0.145f,
+                z + legOffset, 0.073f, 0.265f, 0.073f,
+                rgb(0.045f, 0.12f, 0.18f), citizen.accent,
+                rotationY = yaw, rotationZ = swing * 0.9f
+            )
+            draw(
+                cube, x, footY + 0.465f + bob, z + 0.073f,
+                0.055f, 0.075f, 0.025f,
+                citizen.accent, citizen.accent, rotationY = yaw
+            )
+        }
+    }
+
     private fun drawParticles() {
         GLES20.glUseProgram(particleProgram)
         Matrix.multiplyMM(mvp, 0, projection, 0, view, 0)
-        val matrixLoc = GLES20.glGetUniformLocation(particleProgram, "uMvp")
-        GLES20.glUniformMatrix4fv(matrixLoc, 1, false, mvp, 0)
-        GLES20.glUniform1f(GLES20.glGetUniformLocation(particleProgram, "uTime"), frameTime)
+        GLES20.glUniformMatrix4fv(particleMvpLocation, 1, false, mvp, 0)
+        GLES20.glUniform1f(particleTimeLocation, frameTime)
         particles.position(0)
-        val posLoc = GLES20.glGetAttribLocation(particleProgram, "aPosition")
+        val posLoc = particlePositionLocation
         GLES20.glEnableVertexAttribArray(posLoc)
         GLES20.glVertexAttribPointer(posLoc, 3, GLES20.GL_FLOAT, false, 3 * 4, particles)
         GLES20.glEnable(GLES20.GL_BLEND)
@@ -375,22 +542,26 @@ private class OceanCityRenderer(
         sy: Float,
         sz: Float,
         color: FloatArray,
-        glow: FloatArray
+        glow: FloatArray,
+        rotationY: Float = 0f,
+        rotationZ: Float = 0f
     ) {
         Matrix.setIdentityM(model, 0)
         Matrix.translateM(model, 0, x, y, z)
+        if (rotationY != 0f) Matrix.rotateM(model, 0, rotationY, 0f, 1f, 0f)
+        if (rotationZ != 0f) Matrix.rotateM(model, 0, rotationZ, 0f, 0f, 1f)
         Matrix.scaleM(model, 0, sx, sy, sz)
         Matrix.multiplyMM(modelView, 0, view, 0, model, 0)
         Matrix.multiplyMM(mvp, 0, projection, 0, modelView, 0)
 
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(program, "uMvp"), 1, false, mvp, 0)
-        GLES20.glUniformMatrix4fv(GLES20.glGetUniformLocation(program, "uModel"), 1, false, model, 0)
-        GLES20.glUniform4fv(GLES20.glGetUniformLocation(program, "uColor"), 1, color, 0)
-        GLES20.glUniform4fv(GLES20.glGetUniformLocation(program, "uGlow"), 1, glow, 0)
+        GLES20.glUniformMatrix4fv(uMvpLocation, 1, false, mvp, 0)
+        GLES20.glUniformMatrix4fv(uModelLocation, 1, false, model, 0)
+        GLES20.glUniform4fv(uColorLocation, 1, color, 0)
+        GLES20.glUniform4fv(uGlowLocation, 1, glow, 0)
 
         mesh.buffer.position(0)
-        val p = GLES20.glGetAttribLocation(program, "aPosition")
-        val n = GLES20.glGetAttribLocation(program, "aNormal")
+        val p = aPositionLocation
+        val n = aNormalLocation
         GLES20.glEnableVertexAttribArray(p)
         GLES20.glEnableVertexAttribArray(n)
         GLES20.glVertexAttribPointer(p, 3, GLES20.GL_FLOAT, false, 6 * 4, mesh.buffer)

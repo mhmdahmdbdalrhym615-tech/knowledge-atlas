@@ -1025,7 +1025,6 @@ private fun AtlasOceanCityPortal(
 ) {
     val context = LocalContext.current
     var cityView by remember { mutableStateOf<AtlasOceanCityView?>(null) }
-    var immersiveCityView by remember { mutableStateOf<AtlasOceanCityView?>(null) }
     var immersive by remember { mutableStateOf(false) }
     var selectedDistrict by remember { mutableStateOf<Int?>(null) }
     val owner = context as? LifecycleOwner
@@ -1037,22 +1036,6 @@ private fun AtlasOceanCityPortal(
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> if (immersive) view?.onPause() else view?.onResume()
-                Lifecycle.Event.ON_PAUSE -> view?.onPause()
-                else -> Unit
-            }
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose {
-            owner?.lifecycle?.removeObserver(observer)
-            view?.onPause()
-        }
-    }
-
-    DisposableEffect(immersiveCityView, owner) {
-        val view = immersiveCityView
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> view?.onResume()
                 Lifecycle.Event.ON_PAUSE -> view?.onPause()
                 else -> Unit
             }
@@ -1143,16 +1126,7 @@ private fun AtlasOceanCityPortal(
             properties = DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Box(Modifier.fillMaxSize().background(Color(0xFF031725))) {
-                AndroidView(
-                    factory = { ctx ->
-                        AtlasOceanCityView(ctx) { id ->
-                            selectedDistrict = id
-                            onBuildingSelected(id)
-                        }.also { immersiveCityView = it }
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                    update = { if (immersiveCityView !== it) immersiveCityView = it }
-                )
+                AtlasFilamentCityScene(modifier = Modifier.fillMaxSize())
                 Row(
                     Modifier.align(Alignment.TopCenter)
                         .fillMaxWidth()
@@ -1185,7 +1159,7 @@ private fun AtlasOceanCityPortal(
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp
                         )
-                        Text("9 سكان متحركون • روبوتات خدمة • مركبات غواصة", color = accent, fontSize = 9.sp)
+                        Text("شخصيات GLB متحركة • مبانٍ مستوردة • خامات PBR", color = accent, fontSize = 9.sp)
                     }
                 }
             }

@@ -1,0 +1,24 @@
+use_default_settings:
+  engines:
+    remove:
+      - ahmia
+      - torch
+
+general:
+  debug: false
+  instance_name: "Knowledge Atlas Search"
+
+search:
+  formats:
+    - html
+    - json
+  safe_search: 1
+
+server:
+  bind_address: "0.0.0.0"
+  port: 8080
+  # This SearXNG instance is private behind Atlas Search API. The API applies
+  # its own request limits; disabling SearXNG's IP limiter avoids trusting
+  # Railway's internal proxy headers on the private service-to-service hop.
+  limiter: false
+  image_proxy: false

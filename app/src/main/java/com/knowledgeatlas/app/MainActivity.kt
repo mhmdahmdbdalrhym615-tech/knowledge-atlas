@@ -474,7 +474,12 @@ private fun AtlasHome(
                     Text(source.concreteOfferingAr, color = Color.LightGray)
                     Text("كيف تبدأ؟", color = AtlasTeal, fontWeight = FontWeight.Bold)
                     Text(source.exactStepsToStartAr, color = Color.LightGray)
-                    Text("آخر تحقق: ${source.lastVerifiedDate}", color = Color.LightGray, fontSize = 12.sp)
+                    Text(
+                        if (source.lastVerifiedDate.isBlank()) "لم يُسجل تحقق فردي بعد"
+                        else "آخر تحقق: ${source.lastVerifiedDate}",
+                        color = if (source.lastVerifiedDate.isBlank()) AtlasGold else Color.LightGray,
+                        fontSize = 12.sp
+                    )
                     Text("نوع الوصول: ${accessTypeLabel(source.accessType)}", color = Color.LightGray, fontSize = 12.sp)
                     Text("تصنيف الجهة: ${confidenceLabel(source.confidenceLevel)}", color = Color.LightGray, fontSize = 12.sp)
                     Text("مرجع التحقق: ${source.verificationSource}", color = Color.LightGray, fontSize = 12.sp)
@@ -589,7 +594,12 @@ private fun SourceCard(
                 Surface(color = Color(0xFF1C4650), shape = RoundedCornerShape(50)) {
                     Text(categoryLabel(source.categoryId), color = AtlasTeal, fontSize = 10.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
-                Text("تحقق: ${source.lastVerifiedDate}", color = Color(0xFF9EADC2), fontSize = 10.sp)
+                Text(
+                    if (source.lastVerifiedDate.isBlank()) "قيد المراجعة"
+                    else "تحقق: ${source.lastVerifiedDate}",
+                    color = if (source.lastVerifiedDate.isBlank()) AtlasGold else Color(0xFF9EADC2),
+                    fontSize = 10.sp
+                )
                 Spacer(Modifier.weight(1f))
                 Text("التفاصيل ←", color = AtlasTeal, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
             }

@@ -28,3 +28,22 @@ def test_ranking_deduplicates_and_rejects_http():
     assert len(results)==2
     assert results[0]["publisherType"]=="منظمة دولية"
     assert all(x["url"].startswith("https://") for x in results)
+
+from pathlib import Path
+import json
+
+def test_offline_catalog_has_at_least_100_entries_and_all_12_categories():
+    catalog_path = Path(__file__).resolve().parents[3] / "app" / "src" / "main" / "assets" / "knowledge_catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+    records = catalog["records"]
+    assert len(records) >= 100
+    assert {record["categoryId"] for record in records} == set(range(1, 13))
+    assert len({record["id"] for record in records}) == len(records)
+
+def test_catalog_uses_https_and_does_not_fake_verification():
+    catalog_path = Path(__file__).resolve().parents[3] / "app" / "src" / "main" / "assets" / "knowledge_catalog.json"
+    records = json.loads(catalog_path.read_text(encoding="utf-8"))["records"]
+    assert all(record["officialUrl"].startswith("https://") for record in records)
+    assert all(record["lastVerifiedDate"] == "" for record in records)
+    assert all(record["confidenceLevel"] == "REVIEW_REQUIRED" for record in records)
+    assert all(record["accessType"] in {"FREE", "PAID", "MIXED", "REGISTRATION", "UNKNOWN"} for record in records)

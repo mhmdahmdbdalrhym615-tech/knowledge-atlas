@@ -141,7 +141,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
       - name: Test catalogue audit logic
-        run: python -m unittest tests/test_audit_catalog_links.py -v
+        run: python tests/test_audit_catalog_links.py
       - name: Audit all catalogue HTTPS endpoints
         run: python tools/audit_catalog_links.py --out-dir catalog-audit
       - name: Upload catalogue audit report

@@ -3,8 +3,10 @@ package com.knowledgeatlas.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -38,6 +41,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.knowledgeatlas.app.data.model.KnowledgeSource
+import com.knowledgeatlas.app.update.DirectUpdateManager
+import com.knowledgeatlas.app.update.UpdateResult
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 
@@ -45,6 +51,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val dao = (application as AtlasApplication).database.knowledgeDao()
+        val updateManager = DirectUpdateManager(this)
         val query = MutableStateFlow("")
         val visibleSources = combine(dao.getAllSources(), query) { all, text ->
             if (text.isBlank()) all else all.filter { source ->
@@ -69,6 +76,17 @@ class MainActivity : ComponentActivity() {
                     onSearchChanged = {
                         searchText = it
                         query.value = it
+                    },
+                    onCheckUpdate = {
+                        lifecycleScope.launch {
+                            when (val result = updateManager.checkAndDownload()) {
+                                UpdateResult.Disabled -> Toast.makeText(this@MainActivity, "التحديث المباشر غير مفعّل لهذه النسخة.", Toast.LENGTH_LONG).show()
+                                UpdateResult.UpToDate -> Toast.makeText(this@MainActivity, "أنت تستخدم أحدث إصدار.", Toast.LENGTH_SHORT).show()
+                                UpdateResult.PermissionRequired -> Toast.makeText(this@MainActivity, "اسمح للتطبيق بالتثبيت من هذا المصدر، ثم اضغط فحص التحديث مرة أخرى.", Toast.LENGTH_LONG).show()
+                                is UpdateResult.ReadyToInstall -> updateManager.requestUserInstall(result)
+                                is UpdateResult.Failed -> Toast.makeText(this@MainActivity, result.reason, Toast.LENGTH_LONG).show()
+                            }
+                        }
                     }
                 )
             }
@@ -81,7 +99,8 @@ class MainActivity : ComponentActivity() {
 private fun AtlasHome(
     sources: List<KnowledgeSource>,
     searchText: String,
-    onSearchChanged: (String) -> Unit
+    onSearchChanged: (String) -> Unit,
+    onCheckUpdate: () -> Unit
 ) {
     val context = LocalContext.current
     var selectedCategory by remember { mutableStateOf<Int?>(null) }
@@ -168,6 +187,12 @@ private fun AtlasHome(
                     placeholder = { Text("مثال: أريد تعلم تحليل التربة") },
                     singleLine = true
                 )
+            }
+
+            item {
+                Button(onClick = onCheckUpdate, modifier = Modifier.fillMaxWidth()) {
+                    Text("فحص تحديث التطبيق")
+                }
             }
 
             item {

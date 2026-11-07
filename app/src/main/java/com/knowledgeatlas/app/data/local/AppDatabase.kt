@@ -91,7 +91,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         private companion object {
-            const val CATALOG_SEED_VERSION = 1
+            const val CATALOG_SEED_VERSION = 2
         }
     }
 }

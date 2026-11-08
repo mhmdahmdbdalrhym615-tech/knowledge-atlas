@@ -79,7 +79,7 @@ jobs:
             -PATLAS_VERSION_NAME="$ATLAS_VERSION_NAME" \
             -PATLAS_SEARCH_API_BASE_URL="${ATLAS_SEARCH_API_BASE_URL:-}" \
             -PATLAS_UPDATE_MANIFEST_URL="${ATLAS_UPDATE_MANIFEST_URL:-}" \
-            assembleDirectRelease testDirectReleaseUnitTest
+            assembleDirectRelease testDirectDebugUnitTest
       - name: Verify signature and create release metadata
         env:
           VERSION_NAME: ${{ inputs.version_name }}

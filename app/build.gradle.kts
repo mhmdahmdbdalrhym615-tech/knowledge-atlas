@@ -73,6 +73,11 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    androidResources {
+        // Filament reads materials, environments and models straight from the APK.
+        noCompress += listOf("filamat", "ktx", "glb")
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -89,7 +94,10 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("io.github.sceneview:sceneview:3.6.0")
+    implementation("com.google.android.filament:filament-android:1.70.0")
+    implementation("com.google.android.filament:gltfio-android:1.70.0")
+    implementation("com.google.android.filament:filament-utils-android:1.70.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.room:room-runtime:2.8.5")

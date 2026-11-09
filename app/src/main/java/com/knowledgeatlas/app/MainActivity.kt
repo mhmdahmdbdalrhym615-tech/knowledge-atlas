@@ -97,7 +97,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import com.knowledgeatlas.app.world.AtlasWorldScreen
+import com.knowledgeatlas.app.world.WorldSourceRef
 import com.knowledgeatlas.app.data.model.KnowledgeSource
 import com.knowledgeatlas.app.search.AtlasLocalSearch
 import com.knowledgeatlas.app.search.AtlasSearchGateway
@@ -220,8 +221,26 @@ private fun AtlasHome(
     var activeTab by remember { mutableStateOf(AtlasTab.DISCOVER) }
     var selectedSource by remember { mutableStateOf<KnowledgeSource?>(null) }
     var browserPage by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var worldMode by remember { mutableStateOf(true) }
+    val worldRefs = remember(sources.map { it.id }) {
+        sources.map { WorldSourceRef(id = it.id, nameAr = it.nameAr, nameEn = it.nameEn, categoryId = it.categoryId) }
+    }
+    val overlayOpen = selectedSource != null || browserPage != null
 
     BackHandler(enabled = selectedSource != null && browserPage == null) { selectedSource = null }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+    if (worldMode && worldRefs.isNotEmpty()) {
+        // The world stays composed under source pages so returning from a door is instant.
+        AtlasWorldScreen(
+            sources = worldRefs,
+            startCategoryId = 4,
+            paused = overlayOpen,
+            onOpenSource = { id -> selectedSource = sources.firstOrNull { it.id == id } },
+            onExitToCatalog = { worldMode = false }
+        )
+    }
+    if (!worldMode || overlayOpen || worldRefs.isEmpty()) {
     val tabSources = if (activeTab == AtlasTab.SAVED) sources.filter { it.isFavorite } else sources
     val rankedSources = AtlasLocalSearch.rank(tabSources, searchText)
     val filteredSources = rankedSources.filter { selectedCategory == null || it.categoryId == selectedCategory }
@@ -285,7 +304,8 @@ private fun AtlasHome(
                         accent = accent,
                         onOpenSource = { selectedSource = it },
                         onOpenWeb = { hit -> browserPage = hit.url to hit.title },
-                        onFavorite = { source -> onUpdateSource(source.copy(isFavorite = !source.isFavorite)) }
+                        onFavorite = { source -> onUpdateSource(source.copy(isFavorite = !source.isFavorite)) },
+                        onEnterWorld = { worldMode = true }
                     )
                     AtlasTab.SETTINGS -> SettingsScreen(
                         count = sources.size,
@@ -296,6 +316,8 @@ private fun AtlasHome(
                 }
             }
         }
+    }
+    }
     }
 }
 
@@ -313,7 +335,8 @@ private fun DiscoverScreen(
     accent: Color,
     onOpenSource: (KnowledgeSource) -> Unit,
     onOpenWeb: (WebSearchHit) -> Unit,
-    onFavorite: (KnowledgeSource) -> Unit
+    onFavorite: (KnowledgeSource) -> Unit,
+    onEnterWorld: () -> Unit
 ) {
     val savedCount = sources.count { it.isFavorite }
     LazyColumn(
@@ -326,10 +349,10 @@ private fun DiscoverScreen(
         }
         if (tab == AtlasTab.DISCOVER) {
             item {
-                AtlasOceanCityPortal(
+                AtlasWorldEntryCard(
                     accent = accent,
                     sourceCount = sources.size,
-                    onBuildingSelected = { id -> onCategory(if (id == 0) null else id) }
+                    onEnter = onEnterWorld
                 )
             }
         } else {
@@ -1016,153 +1039,31 @@ private fun confidenceLabel(value: String): String = when (value.uppercase()) {
     else -> "غير مصنف"
 }
 
-
 @Composable
-private fun AtlasOceanCityPortal(
-    accent: Color,
-    sourceCount: Int,
-    onBuildingSelected: (Int) -> Unit
-) {
-    val context = LocalContext.current
-    var cityView by remember { mutableStateOf<AtlasOceanCityView?>(null) }
-    var immersive by remember { mutableStateOf(false) }
-    var selectedDistrict by remember { mutableStateOf<Int?>(null) }
-    val owner = context as? LifecycleOwner
-
-    // Pause the small portal preview while the full-screen world is open.
-    DisposableEffect(cityView, owner, immersive) {
-        val view = cityView
-        if (immersive) view?.onPause() else view?.onResume()
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_RESUME -> if (immersive) view?.onPause() else view?.onResume()
-                Lifecycle.Event.ON_PAUSE -> view?.onPause()
-                else -> Unit
-            }
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose {
-            owner?.lifecycle?.removeObserver(observer)
-            view?.onPause()
-        }
-    }
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("مدينة أطلس الغارقة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
-                Text("عالم ثلاثي الأبعاد حيّ • المس المباني لاستكشافها", color = AtlasTeal, fontSize = 10.sp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = CircleShape, color = Color(0xFF123A45)) {
-                    Text("LIVE  3D", color = AtlasTeal, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.padding(horizontal = 10.dp, vertical = 7.dp))
-                }
-                TextButton(onClick = { immersive = true }) {
-                    Text("دخول العالم", color = accent, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                }
-            }
-        }
-        Box(
-            Modifier.fillMaxWidth().height(340.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .border(1.dp, accent.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
-                .background(Color(0xFF031725))
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    AtlasOceanCityView(ctx) { id ->
-                        selectedDistrict = id
-                        onBuildingSelected(id)
-                    }.also { cityView = it }
-                },
-                modifier = Modifier.fillMaxSize(),
-                update = { if (cityView !== it) cityView = it }
+private fun AtlasWorldEntryCard(accent: Color, sourceCount: Int, onEnter: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onEnter),
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0E1628))
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("العالم الافتراضي", color = accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "12 مدينة معرفية، لكل مجال مدينة، وكل موقع بوابة",
+                color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold
             )
-            Column(
-                Modifier.align(Alignment.TopStart).padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text("ABYSSAL METROPOLIS", color = Color(0xFF9AF7EA), fontSize = 8.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
-                Text("عمق المدينة  •  3,800 m", color = Color(0xFFB5D7E4), fontSize = 9.sp)
-            }
-            Surface(
-                Modifier.align(Alignment.BottomCenter).padding(10.dp),
-                shape = RoundedCornerShape(15.dp),
-                color = Color(0xD90A2030),
-                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.32f))
-            ) {
-                Column(Modifier.padding(horizontal = 13.dp, vertical = 9.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        selectedDistrict?.let { id ->
-                            if (id == 0) "مركز القيادة — قلب أطلس" else AtlasCategories.firstOrNull { it.id == id }?.title ?: "منطقة أطلس"
-                        } ?: "اسحب لتدور • قرّب بإصبعين • المس مبنى",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 10.sp
-                    )
-                    Text("$sourceCount مصدر معرفي متصل بالمدينة", color = accent, fontSize = 8.sp)
-                }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            listOf("↻ تدوير" to "المدينة", "＋ تقريب" to "بإصبعين", "⌖" to "اختر مبنى").forEach { pair ->
-                Surface(
-                    Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF14283A)
-                ) {
-                    Column(Modifier.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(pair.first, color = accent, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        Text(pair.second, color = AtlasMuted, fontSize = 8.sp)
-                    }
-                }
-            }
-        }
-    }
-    
-    if (immersive) {
-        Dialog(
-            onDismissRequest = { immersive = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Box(Modifier.fillMaxSize().background(Color(0xFF031725))) {
-                AtlasFilamentCityScene(modifier = Modifier.fillMaxSize())
-                Row(
-                    Modifier.align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .padding(12.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0xD9081D2B))
-                        .padding(horizontal = 14.dp, vertical = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("أطلس — المدينة الغارقة", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
-                        Text("تجول بحرية • اسحب لتغيير اتجاه الرؤية • قرّب بإصبعين", color = AtlasTeal, fontSize = 9.sp)
-                    }
-                    TextButton(onClick = { immersive = false }) {
-                        Text("خروج", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-                Surface(
-                    Modifier.align(Alignment.BottomCenter).padding(14.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    color = Color(0xD9081D2B),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.38f))
-                ) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            selectedDistrict?.let { id ->
-                                if (id == 0) "مركز القيادة — قلب أطلس" else AtlasCategories.firstOrNull { it.id == id }?.title ?: "منطقة أطلس"
-                            } ?: "اختر مبنى أو راقب حركة سكان المدينة",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                        Text("شخصيات GLB متحركة • مبانٍ مستوردة • خامات PBR", color = accent, fontSize = 9.sp)
-                    }
-                }
-            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "امشي بالشخصية، اركب المركبة، واقفز بسرعة أسرع من الضوء بين المدن. $sourceCount موقع في انتظارك.",
+                color = Color(0xFFA9B5CC), fontSize = 13.sp
+            )
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "ادخل العالم",
+                color = Color(0xFF0B1220), fontWeight = FontWeight.Bold,
+                modifier = Modifier.background(accent, RoundedCornerShape(12.dp)).padding(horizontal = 18.dp, vertical = 10.dp)
+            )
         }
     }
 }

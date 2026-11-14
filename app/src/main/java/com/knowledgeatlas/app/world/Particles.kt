@@ -56,13 +56,13 @@ class ParticleSystem(
         .build(engine)
 
     // Triple-buffered uploads so the CPU never rewrites memory the driver may still be reading.
-    private val posBuffers = Array(3) { direct(capacity * 4 * 3) }
-    private val colBuffers = Array(3) { direct(capacity * 4 * 4) }
+    private val posBuffers = Array(3) { direct(capacity * 4 * 3 * 4) }
+    private val colBuffers = Array(3) { direct(capacity * 4 * 4 * 4) }
     private var ring = 0
     var visible = true
 
     init {
-        val uv = direct(capacity * 4 * 2)
+        val uv = direct(capacity * 4 * 2 * 4)
         val ufb = uv.asFloatBuffer()
         repeat(capacity) { ufb.put(-1f).put(-1f).put(1f).put(-1f).put(1f).put(1f).put(-1f).put(1f) }
         vb.setBufferAt(engine, 1, uv)

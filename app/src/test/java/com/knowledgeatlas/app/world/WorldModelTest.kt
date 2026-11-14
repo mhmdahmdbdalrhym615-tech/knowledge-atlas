@@ -60,11 +60,29 @@ class WorldModelTest {
                 val d = WorldLayout.distanceAu(a, b)
                 assertTrue(WorldLayout.peakWarpFactor(d) > 1.0)
                 val t = WorldLayout.warpSeconds(d)
-                assertTrue(t in 8f..19f)
+                assertTrue(t in WorldLayout.MIN_WARP_SECONDS.toFloat()..WorldLayout.MAX_WARP_SECONDS.toFloat())
                 assertEquals(1f, WorldLayout.warpProgress(t, t), 1e-6f)
                 assertEquals(0f, WorldLayout.warpProgress(0f, t), 1e-6f)
             }
         }
+    }
+
+    @Test fun everyTripBetweenTwoCitiesIsExactly980000Km() {
+        for (a in cities) for (b in cities) {
+            val km = WorldLayout.distanceAu(a, b) * WorldLayout.AU_METERS / 1000.0
+            if (a.index == b.index) assertEquals(0.0, km, 1e-9) else assertEquals(980_000.0, km, 1e-3)
+        }
+    }
+
+    @Test fun warpAt980000KmIsFasterThanLightAndShort() {
+        val d = WorldLayout.CITY_DISTANCE_KM * 1000.0 / WorldLayout.AU_METERS
+        assertTrue(WorldLayout.warpSeconds(d) in 3f..5f)
+        assertEquals(WorldLayout.WARP_PEAK_C, WorldLayout.peakWarpFactor(d), 1e-4)
+    }
+
+    @Test fun distanceAndSpeedAreShownReadably() {
+        assertEquals("980,000 كم", WorldText.formatDistance(980_000_000.0))
+        assertEquals("1.5 × سرعة الضوء", WorldText.formatSpeed(WorldLayout.LIGHT_SPEED * 1.5))
     }
 
     @Test fun formatting() {

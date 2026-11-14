@@ -424,7 +424,7 @@ class WorldEngine(
             showTitle(cities[cityIndex].nameAr)
             onSpeak("أهلاً بك في ${cities[cityIndex].nameAr}. امشي للبوابة عشان تشوف المواقع، أو اركب المركبة وسافر لمدينة تانية", true)
         } catch (t: Throwable) {
-            error = "تعذر تحميل العالم ثلاثي الأبعاد: ${t.message ?: t.javaClass.simpleName}"
+            error = "تعذر تحميل العالم ثلاثي الأبعاد: ${t.message ?: t.javaClass.simpleName} @ ${t.stackTrace.firstOrNull { it.className.startsWith("com.knowledgeatlas") }?.let { "${it.fileName}:${it.lineNumber}" } ?: "-"}"
             publishHud()
         }
     }
@@ -1001,7 +1001,7 @@ class WorldEngine(
         mode = WorldMode.WARP
         phaseTimer = 0f
         seedSpace()
-        val factor = WorldText.formatNumber(warpPeak, 0)
+        val factor = WorldText.formatNumber(warpPeak, if (warpPeak < 10.0) 1 else 0)
         onSpeak("انطلقنا بسرعة تفوق الضوء. السرعة القصوى $factor ضعف سرعة الضوء", true)
     }
 

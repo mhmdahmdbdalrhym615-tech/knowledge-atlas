@@ -52,6 +52,14 @@ object WorldLayout {
     const val AU_METERS = 1.495978707e11
     const val LIGHT_SPEED = 299_792_458.0
 
+    /** Every trip between two different cities is exactly this long, in kilometres. */
+    const val CITY_DISTANCE_KM = 980_000.0
+
+    /** Warp peak speed as a multiple of c, and the allowed trip duration in seconds. */
+    const val WARP_PEAK_C = 1.5
+    const val MIN_WARP_SECONDS = 3.0
+    const val MAX_WARP_SECONDS = 12.0
+
     const val AVENUE_HALF_WIDTH = 16f
     const val SIDEWALK = 9f
     const val DOOR_SPACING = 220f
@@ -118,15 +126,15 @@ object WorldLayout {
             )
         }
 
-    fun distanceAu(a: CityDef, b: CityDef): Double {
-        val dx = a.ax - b.ax
-        val dy = a.ay - b.ay
-        val dz = a.az - b.az
-        return sqrt(dx * dx + dy * dy + dz * dz)
-    }
+    fun distanceAu(a: CityDef, b: CityDef): Double =
+        if (a.index == b.index) 0.0 else CITY_DISTANCE_KM * 1000.0 / AU_METERS
 
     /** Seconds spent inside warp; long trips last longer but never become boring. */
-    fun warpSeconds(distanceAu: Double): Float = (7.0 + distanceAu * 0.42).coerceIn(8.0, 19.0).toFloat()
+    fun warpSeconds(distanceAu: Double): Float {
+        val meters = distanceAu * AU_METERS
+        val seconds = meters / (WARP_PEAK_C * LIGHT_SPEED * 2.0 / 3.0)
+        return seconds.coerceIn(MIN_WARP_SECONDS, MAX_WARP_SECONDS).toFloat()
+    }
 
     /** Peak warp speed as a multiple of c, for a smoothstep velocity profile over [warpSeconds]. */
     fun peakWarpFactor(distanceAu: Double): Double {
@@ -185,7 +193,7 @@ object WorldText {
     }
 
     fun formatSpeed(metersPerSecond: Double): String = when {
-        metersPerSecond >= WorldLayout.LIGHT_SPEED * 0.5 -> "${formatNumber(metersPerSecond / WorldLayout.LIGHT_SPEED, 0)} × سرعة الضوء"
+        metersPerSecond >= WorldLayout.LIGHT_SPEED * 0.5 -> "${formatNumber(metersPerSecond / WorldLayout.LIGHT_SPEED, if (metersPerSecond < WorldLayout.LIGHT_SPEED * 10.0) 1 else 0)} × سرعة الضوء"
         metersPerSecond >= 1000 -> "${formatNumber(metersPerSecond * 3.6, 0)} كم/س"
         else -> "${(metersPerSecond * 3.6).roundToInt()} كم/س"
     }

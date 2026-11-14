@@ -1,0 +1,127 @@
+name: Fix and Build APK
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: feat/android-foundation-self-update
+      - name: Apply fixes and 980000 km city distances
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          main = "app/src/main/java/com/knowledgeatlas/app/world/"
+          test = "app/src/test/java/com/knowledgeatlas/app/world/WorldModelTest.kt"
+          def sub(path, pairs):
+              p = pathlib.Path(path)
+              t = p.read_text(encoding="utf-8")
+              for a, b in pairs:
+                  assert t.count(a) == 1, (path, a[:70])
+                  t = t.replace(a, b)
+              p.write_text(t, encoding="utf-8")
+          sub(main + "Particles.kt", [
+              ("direct(capacity * 4 * 3) }", "direct(capacity * 4 * 3 * 4) }"),
+              ("direct(capacity * 4 * 4) }", "direct(capacity * 4 * 4 * 4) }"),
+              ("val uv = direct(capacity * 4 * 2)", "val uv = direct(capacity * 4 * 2 * 4)"),
+          ])
+          sub(main + "WorldEngine.kt", [
+              ('t.javaClass.simpleName}"', 't.javaClass.simpleName} @ ${t.stackTrace.firstOrNull { it.className.startsWith("com.knowledgeatlas") }?.let { "${it.fileName}:${it.lineNumber}" } ?: "-"}"'),
+              ("val factor = WorldText.formatNumber(warpPeak, 0)", "val factor = WorldText.formatNumber(warpPeak, if (warpPeak < 10.0) 1 else 0)"),
+          ])
+          sub(main + "WorldModel.kt", [
+              ("    const val LIGHT_SPEED = 299_792_458.0\n", """    const val LIGHT_SPEED = 299_792_458.0
+
+              /** Every trip between two different cities is exactly this long, in kilometres. */
+              const val CITY_DISTANCE_KM = 980_000.0
+
+              /** Warp peak speed as a multiple of c, and the allowed trip duration in seconds. */
+              const val WARP_PEAK_C = 1.5
+              const val MIN_WARP_SECONDS = 3.0
+              const val MAX_WARP_SECONDS = 12.0
+          """),
+              ("""    fun distanceAu(a: CityDef, b: CityDef): Double {
+                  val dx = a.ax - b.ax
+                  val dy = a.ay - b.ay
+                  val dz = a.az - b.az
+                  return sqrt(dx * dx + dy * dy + dz * dz)
+              }
+          """, """    fun distanceAu(a: CityDef, b: CityDef): Double =
+                  if (a.index == b.index) 0.0 else CITY_DISTANCE_KM * 1000.0 / AU_METERS
+          """),
+              ("    fun warpSeconds(distanceAu: Double): Float = (7.0 + distanceAu * 0.42).coerceIn(8.0, 19.0).toFloat()", """    fun warpSeconds(distanceAu: Double): Float {
+                  val meters = distanceAu * AU_METERS
+                  val seconds = meters / (WARP_PEAK_C * LIGHT_SPEED * 2.0 / 3.0)
+                  return seconds.coerceIn(MIN_WARP_SECONDS, MAX_WARP_SECONDS).toFloat()
+              }"""),
+              ("formatNumber(metersPerSecond / WorldLayout.LIGHT_SPEED, 0)", "formatNumber(metersPerSecond / WorldLayout.LIGHT_SPEED, if (metersPerSecond < WorldLayout.LIGHT_SPEED * 10.0) 1 else 0)"),
+          ])
+          sub(test, [
+              ("assertTrue(t in 8f..19f)", "assertTrue(t in WorldLayout.MIN_WARP_SECONDS.toFloat()..WorldLayout.MAX_WARP_SECONDS.toFloat())"),
+              ("    @Test fun formatting() {", """    @Test fun everyTripBetweenTwoCitiesIsExactly980000Km() {
+                  for (a in cities) for (b in cities) {
+                      val km = WorldLayout.distanceAu(a, b) * WorldLayout.AU_METERS / 1000.0
+                      if (a.index == b.index) assertEquals(0.0, km, 1e-9) else assertEquals(980_000.0, km, 1e-3)
+                  }
+              }
+
+              @Test fun warpAt980000KmIsFasterThanLightAndShort() {
+                  val d = WorldLayout.CITY_DISTANCE_KM * 1000.0 / WorldLayout.AU_METERS
+                  assertTrue(WorldLayout.warpSeconds(d) in 3f..5f)
+                  assertEquals(WorldLayout.WARP_PEAK_C, WorldLayout.peakWarpFactor(d), 1e-4)
+              }
+
+              @Test fun distanceAndSpeedAreShownReadably() {
+                  assertEquals("980,000 كم", WorldText.formatDistance(980_000_000.0))
+                  assertEquals("1.5 × سرعة الضوء", WorldText.formatSpeed(WorldLayout.LIGHT_SPEED * 1.5))
+              }
+
+              @Test fun formatting() {"""),
+          ])
+          PY
+          git diff --stat
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: ""
+      - uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: atlas-debug-keystore-v1
+      - name: Build, test, release, save fix branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools" > /dev/null
+          API=-PATLAS_SEARCH_API_BASE_URL=https://atlas-search-api-production.up.railway.app
+          ./gradlew --no-daemon --stacktrace $API assembleDirectDebug 2>&1 | tee build.log
+          ./gradlew --no-daemon --stacktrace $API testDirectDebugUnitTest 2>&1 | tee -a build.log || true
+          cp app/build/outputs/apk/direct/debug/*.apk knowledge-atlas-debug.apk
+          gh release delete latest --cleanup-tag --yes >/dev/null 2>&1 || true
+          gh release create latest knowledge-atlas-debug.apk --target "$GITHUB_SHA" --prerelease --title "Knowledge Atlas - latest APK" --notes "Particle buffers fixed; cities 980000 km apart. Debug build; if update fails, uninstall the old app first."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -q -B fix/particle-buffers
+          git commit -qam "fix: particle buffers in bytes; all city trips are 980000 km"
+          git push -q -f origin fix/particle-buffers
+      - name: Publish log to branch ci-logs
+        if: always()
+        run: |
+          d=$(mktemp -d)
+          { echo "run=$GITHUB_RUN_ID"; echo "status=${{ job.status }}"; } > "$d/status.txt"
+          if [ -f build.log ]; then
+            tail -n 200 build.log > "$d/last-build.log"
+            grep -E "^e: |FAILED|What went wrong|BUILD (FAILED|SUCCESSFUL)|tests completed" build.log | head -80 > "$d/errors.log" || true
+          fi
+          cd "$d" && git init -q -b ci-logs && git add -A
+          git -c user.name=github-actions -c user.email=actions@users.noreply.github.com commit -qm "ci log $GITHUB_RUN_ID"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci-logs

@@ -1,0 +1,117 @@
+Downloading https://services.gradle.org/distributions/gradle-9.4.1-bin.zip
+.............10%.............20%.............30%.............40%.............50%.............60%..............70%.............80%.............90%.............100%
+
+Welcome to Gradle 9.4.1!
+
+Here are the highlights of this release:
+ - Java 26 support
+ - Non-class-based JVM tests
+ - Enhanced console progress bar
+
+For more details see https://docs.gradle.org/9.4.1/release-notes.html
+
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.4.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: The option setting 'android.disallowKotlinSourceSets=false' is experimental.
+The current default is 'true'.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDirectDebugBuild UP-TO-DATE
+> Task :app:mergeDirectDebugNativeDebugMetadata NO-SOURCE
+> Task :app:generateDirectDebugBuildConfig
+> Task :app:generateDirectDebugResources
+> Task :app:packageDirectDebugResources
+> Task :app:processDirectDebugNavigationResources
+> Task :app:parseDirectDebugLocalResources
+> Task :app:generateDirectDebugAssets UP-TO-DATE
+> Task :app:javaPreCompileDirectDebug
+> Task :app:generateDirectDebugRFile
+> Task :app:mergeDirectDebugAssets
+> Task :app:compressDirectDebugAssets
+> Task :app:generateDirectDebugGlobalSynthetics
+> Task :app:desugarDirectDebugFileDependencies
+> Task :app:checkDirectDebugDuplicateClasses
+> Task :app:checkDirectDebugAarMetadata
+> Task :app:kspDirectDebugKotlin
+> Task :app:mergeExtDexDirectDebug
+> Task :app:mapDirectDebugSourceSetPaths
+> Task :app:mergeLibDexDirectDebug
+> Task :app:compileDirectDebugNavigationResources
+> Task :app:createDirectDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDirectDebug
+> Task :app:processDirectDebugMainManifest
+> Task :app:processDirectDebugManifest
+> Task :app:processDirectDebugManifestForPackage
+> Task :app:mergeDirectDebugJniLibFolders
+> Task :app:mergeDirectDebugResources
+> Task :app:mergeDirectDebugNativeLibs
+
+> Task :app:stripDirectDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libandroidx.graphics.path.so, libfilament-jni.so, libfilament-utils-jni.so, libgltfio-jni.so. Run with --info option to learn more.
+
+> Task :app:processDirectDebugResources
+> Task :app:validateSigningDirectDebug
+> Task :app:writeDirectDebugAppMetadata
+> Task :app:writeDirectDebugSigningConfigVersions
+> Task :app:compileDirectDebugKotlin
+w: file:///home/runner/work/knowledge-atlas/knowledge-atlas/app/src/main/java/com/knowledgeatlas/app/MainActivity.kt:844:22 'var allowFileAccessFromFileURLs: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/knowledge-atlas/knowledge-atlas/app/src/main/java/com/knowledgeatlas/app/MainActivity.kt:845:22 'var allowUniversalAccessFromFileURLs: Boolean' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/knowledge-atlas/knowledge-atlas/app/src/main/java/com/knowledgeatlas/app/world/AtlasWorldScreen.kt:113:26 'val LocalLifecycleOwner: ProvidableCompositionLocal<LifecycleOwner>' is deprecated. Moved to lifecycle-runtime-compose library in androidx.lifecycle.compose package.
+
+> Task :app:compileDirectDebugJavaWithJavac
+> Task :app:processDirectDebugJavaRes
+> Task :app:mergeDirectDebugJavaResource
+> Task :app:dexBuilderDirectDebug
+> Task :app:mergeProjectDexDirectDebug
+> Task :app:packageDirectDebug
+> Task :app:createDirectDebugApkListingFileRedirect
+> Task :app:assembleDirectDebug
+
+BUILD SUCCESSFUL in 3m 39s
+39 actionable tasks: 39 executed
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.4.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :app
+WARNING: The option setting 'android.disallowKotlinSourceSets=false' is experimental.
+The current default is 'true'.
+
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDirectDebugBuild UP-TO-DATE
+> Task :app:generateDirectDebugBuildConfig UP-TO-DATE
+> Task :app:generateDirectDebugResources UP-TO-DATE
+> Task :app:packageDirectDebugResources UP-TO-DATE
+> Task :app:processDirectDebugNavigationResources UP-TO-DATE
+> Task :app:parseDirectDebugLocalResources UP-TO-DATE
+> Task :app:generateDirectDebugRFile UP-TO-DATE
+> Task :app:kspDirectDebugKotlin UP-TO-DATE
+> Task :app:compileDirectDebugKotlin UP-TO-DATE
+> Task :app:javaPreCompileDirectDebug UP-TO-DATE
+> Task :app:compileDirectDebugJavaWithJavac UP-TO-DATE
+> Task :app:checkDirectDebugAarMetadata UP-TO-DATE
+> Task :app:mapDirectDebugSourceSetPaths UP-TO-DATE
+> Task :app:compileDirectDebugNavigationResources UP-TO-DATE
+> Task :app:mergeDirectDebugResources UP-TO-DATE
+> Task :app:createDirectDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDirectDebug UP-TO-DATE
+> Task :app:processDirectDebugMainManifest UP-TO-DATE
+> Task :app:processDirectDebugManifest UP-TO-DATE
+> Task :app:processDirectDebugManifestForPackage UP-TO-DATE
+> Task :app:processDirectDebugResources UP-TO-DATE
+> Task :app:preDirectDebugUnitTestBuild UP-TO-DATE
+> Task :app:processDirectDebugJavaRes UP-TO-DATE
+> Task :app:javaPreCompileDirectDebugUnitTest
+> Task :app:bundleDirectDebugClassesToCompileJar
+> Task :app:bundleDirectDebugClassesToRuntimeJar
+> Task :app:kspDirectDebugUnitTestKotlin
+> Task :app:compileDirectDebugUnitTestKotlin
+> Task :app:compileDirectDebugUnitTestJavaWithJavac NO-SOURCE
+> Task :app:processDirectDebugUnitTestJavaRes
+> Task :app:testDirectDebugUnitTest
+
+BUILD SUCCESSFUL in 26s
+28 actionable tasks: 7 executed, 21 up-to-date
+Consider enabling configuration cache to speed up this build: https://docs.gradle.org/9.4.1/userguide/configuration_cache_enabling.html
